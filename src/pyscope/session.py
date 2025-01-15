@@ -1,15 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 from enum import Enum
-try:
-   from account import GSAccount
-except ModuleNotFoundError:
-   from .account import GSAccount
-
-try:
-   from course import GSCourse
-except ModuleNotFoundError:
-   from .course import GSCourse
+from pyscope.account import GSAccount
+from pyscope.course import GSCourse
 
 class ConnState(Enum):
     INIT = 0
@@ -71,7 +64,7 @@ class GSConnection():
         
         for course in instructor_courses.find_all('a', class_ = 'courseBox'):
             shortname = course.find('h3', class_ = 'courseBox--shortname').text
-            name = course.find('h4', class_ = 'courseBox--name').text
+            name = course.find('div', class_ = 'courseBox--name').text
             cid = course.get("href").split("/")[-1]
             year = None
             print(cid, name, shortname)
@@ -86,7 +79,7 @@ class GSConnection():
         student_courses = parsed_account_resp.find('h1', class_ ='pageHeading', string = "Student Courses").next_sibling
         for course in student_courses.find_all('a', class_ = 'courseBox'):
             shortname = course.find('h3', class_ = 'courseBox--shortname').text
-            name = course.find('h4', class_ = 'courseBox--name').text
+            name = course.find('div', class_ = 'courseBox--name').text
             cid = course.get("href").split("/")[-1]
             
             for tag in course.parent.previous_siblings:

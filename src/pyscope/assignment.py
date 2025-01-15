@@ -1,9 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-try:
-   from question import GSQuestion
-except ModuleNotFoundError:
-   from .question import GSQuestion
+from pyscope.question import GSQuestion
 import json
 
 class GSAssignment():
@@ -110,7 +107,7 @@ class GSAssignment():
 
         submission_resp = self.session.post('https://www.gradescope.com/courses/'+self.course.cid+
                                             '/assignments/'+self.aid+'/submission_batches',
-                                            files = assignment_files
+                                            files = assignment_files,
                                             headers = {'x-csrf-token': authenticity_token})
         
     # TODO
