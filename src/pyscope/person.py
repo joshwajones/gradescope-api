@@ -1,4 +1,8 @@
 from enum import Enum
+from dataclasses import dataclass
+
+from pyscope.pyscope_types import RosterType
+from pyscope.exceptions import GSRoleException
 
 class GSRole(Enum):
     STUDENT = 0
@@ -30,15 +34,23 @@ class GSRole(Enum):
         }
         return strings[val]
         
-    class GSRoleException(Exception):
-        pass
+
+@dataclass
+class GSPerson(RosterType):
+    name: str
+    data_id: str
+    email: str
+    num_submissions: int
+    linked: bool
+    role_str: str
+
+    def __post_init__(self):
+        self.role = GSRole.from_str(self.role_str)
     
+    def unique_id(self):
+        return self.email
     
-class GSPerson():
-    def __init__(self, name, data_id, email, role, submissions, linked):
-        self.name = name
-        self.data_id = data_id
-        self.email = email
-        self.role = GSRole.from_str(role)
-        self.linked = linked
-        self.submissions = submissions
+    def format(self, prefix='\t'):
+        return f"{prefix}Name: {self.name}\n{prefix}Email: {self.email}\n{prefix}Role: {self.role_str}"
+ 
+    

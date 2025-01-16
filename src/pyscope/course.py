@@ -1,34 +1,55 @@
 from enum import Enum
 from bs4 import BeautifulSoup
+from dataclasses import dataclass
+import requests
+from typing import Union, Optional
+import click
+import datetime
+import json
+import re
+
 from pyscope.person import GSPerson, GSRole
+from pyscope.roster import Roster
 from pyscope.assignment import GSAssignment
+from pyscope.exceptions import HTMLParseError
+from pyscope.utils import CourseData
 
 
-class LoadedCapabilities(Enum):
-    ASSIGNMENTS = 0
-    ROSTER = 1
-
+@dataclass
 class GSCourse():
+    course_id: str
+    name: str
+    nickname: str
+    instructor: bool
+    session: requests.Session
+    year: Union[int, None]
 
-    def __init__(self, cid, name, shortname, year, session):
-        '''Create a course object that has lazy eval'd assignments'''
-        self.cid = cid
-        self.name = name
-        self.shortname = shortname
-        self.year = year
-        self.session = session
-        self.assignments = {}
-        self.roster = {} # TODO: Maybe shouldn't dict. 
-        self.state = set() # Set of already loaded entitites (TODO what is the pythonic way to do this?)
-
+    def __post_init__(self):
+        self.roster = Roster()
+        self.assignments = Roster()
+        self._currently_loaded = 0
+    
+    def update_roster(self):
+        self.roster.clear()
+        self._lazy_load_roster()
+    
+    def update_assignments(self):
+        self.assignments.clear()
+        self._lazy_load_assignments()
     # ~~~~~~~~~~~~~~~~~~~~~~PEOPLE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def add_person(self, name, email, role, sid = None, notify = False):
-        self._check_capabilities({LoadedCapabilities.ROSTER})
-        
-        membership_resp = self.session.get('https://www.gradescope.com/courses/' + self.cid + '/memberships')
-        parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
+    def add_person(
+        self, 
+        name: str, 
+        email: str, 
+        role: GSRole, 
+        sid: Optional[str] = None, 
+        notify: bool = False
+    ):
+        self._load_necessary_data(CourseData.ROSTER)
 
+        membership_resp = self.session.get(f'https://www.gradescope.com/courses/{self.course_id}/memberships')
+        parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
         authenticity_token = parsed_membership_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
         person_params = {
             "utf8": "✓",
@@ -40,19 +61,22 @@ class GSCourse():
         }
         if notify:
             person_params['notify_by_email'] = 1
-        # Seriously. Why is this website so inconsistent as to where the csrf token goes?????????
-        add_resp = self.session.post('https://www.gradescope.com/courses/' + self.cid + '/memberships',
-                                     data = person_params,
-                                     headers = {'x-csrf-token': authenticity_token})
 
-        # TODO this is highly wasteful, need to likely improve this. 
-        self.roster = {}
-        self._lazy_load_roster()
-
-    def remove_person(self, name):
-        self._check_capabilities({LoadedCapabilities.ROSTER})
+        add_resp = self.session.post(
+            f'https://www.gradescope.com/courses/{self.course_id}/memberships',
+            data = person_params,
+            headers = {'x-csrf-token': authenticity_token}
+        )
         
-        membership_resp = self.session.get('https://www.gradescope.com/courses/' + self.cid + '/memberships')
+        add_resp.raise_for_status()
+
+        # Wasteful, but post response does not include new person's data id
+        self._currently_loaded &= ~CourseData.ROSTER
+
+    def remove_person(self, *, name: str = None, email: str = None, person: GSPerson = None, ask_for_confirmation: bool = True):
+        self._load_necessary_data(CourseData.ROSTER)
+        
+        membership_resp = self.session.get(f'https://www.gradescope.com/courses/{self.course_id}/memberships')
         parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
 
         authenticity_token = parsed_membership_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
@@ -60,47 +84,53 @@ class GSCourse():
             "_method" : "delete",
             "authenticity_token" : authenticity_token
         }
-        remove_resp = self.session.post('https://www.gradescope.com/courses/'+self.cid+'/memberships/'
-                                     +self.roster[name].data_id,
-                                     data = remove_params,
-                                     headers = {'x-csrf-token': authenticity_token})
+        person = self.roster.get_entity(name=name, uid=email, entity=person, raise_error=False)
+        if ask_for_confirmation:
+            if not click.confirm(f"Found person:\n{person.format()}.\nAre you sure you want to remove?", default=False):
+                return
 
-        # TODO this is highly wasteful, need to likely improve this. 
-        self.roster = {}
-        self._lazy_load_roster()
+        remove_resp = self.session.post(
+            f'https://www.gradescope.com/courses/{self.course_id}/memberships/{person.data_id}',
+            data = remove_params,
+            headers = {'x-csrf-token': authenticity_token}
+        )
+        remove_resp.raise_for_status()
+        self.roster.remove_entity(entity=person)
 
-    def change_person_role(self, name, role):
-        self._check_capabilities({LoadedCapabilities.ROSTER})
+    def change_person_role(self, *, name: str = None, email: str = None, person: GSPerson = None, new_role: GSRole):
+        self._load_necessary_data(CourseData.ROSTER)
         
-        membership_resp = self.session.get('https://www.gradescope.com/courses/' + self.cid + '/memberships')
+        membership_resp = self.session.get(f'https://www.gradescope.com/courses/{self.course_id}/memberships')
         parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
 
         authenticity_token = parsed_membership_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
         role_params = {
-            "course_membership[role]" : role.value,
+            "course_membership[role]" : new_role.value,
         }
-        role_resp = self.session.patch('https://www.gradescope.com/courses/'+self.cid+'/memberships/'
-                                     +self.roster[name].data_id+'/update_role' ,
-                                     data = role_params,
-                                     headers = {'x-csrf-token': authenticity_token})
+        person = self.roster.get_entity(name=name, uid=email, entity=person)
 
-        # TODO this is highly wasteful, need to likely improve this. 
-        self.roster = {}
-        self._lazy_load_roster()
+        role_resp = self.session.patch(f'https://www.gradescope.com/courses/{self.course_id}/memberships/{person.data_id}/update_role',
+            data = role_params,
+            headers = {'x-csrf-token': authenticity_token}
+        )
+        role_resp.raise_for_status()
+        person.role = new_role
 
     # ~~~~~~~~~~~~~~~~~~~~~~ASSIGNMENTS~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def add_assignment(self,
-                       name,
-                       release,
-                       due,
-                       template_file,
-                       student_submissions = True,
-                       late_submissions = False,
-                       group_submissions = 0):
-        self._check_capabilities({LoadedCapabilities.ASSIGNMENTS})
+    def add_assignment(
+        self,
+        name: str,
+        release: datetime,
+        due: datetime,
+        template_file_path: str,
+        student_submissions: bool = True,
+        late_submissions: bool = False,
+        group_submissions: int = 0
+    ):
+        self._load_necessary_data(CourseData.ASSIGNMENTS)
         
-        assignment_resp = self.session.get('https://www.gradescope.com/courses/'+self.cid+'/assignments')
+        assignment_resp = self.session.get(f'https://www.gradescope.com/courses/{self.course_id}/assignments')
         parsed_assignment_resp = BeautifulSoup(assignment_resp.text, 'html.parser')
         authenticity_token = parsed_assignment_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
 
@@ -116,74 +146,87 @@ class GSCourse():
             "assignment[group_submission]" : group_submissions
         }
         assignment_files = {
-            "template_pdf" : open(template_file, 'rb')
+            "template_pdf" : open(template_file_path, 'rb')
         }
-        assignment_resp = self.session.post('https://www.gradescope.com/courses/'+self.cid+'/assignments',
+        assignment_resp = self.session.post(f'https://www.gradescope.com/courses/{self.course_id}/assignments',
                                             files = assignment_files,
                                             data = assignment_params)
+        assignment_resp.raise_for_status()
 
-        # TODO this is highly wasteful, need to likely improve this. 
-        self.assignments = {}
-        self._lazy_load_assignments()
+        # Wasteful, but post response does not include new assignment ID
+        self._currently_loaded &= ~CourseData.ASSIGNMENTS
         
-    def remove_assignment(self, name):
-        self._check_capabilities({LoadedCapabilities.ASSIGNMENTS})
+    def remove_assignment(self, *, name: str = None, assignment_id: str = None, assignment: GSAssignment = None, ask_for_confirmation: bool = True):
+        self._load_necessary_data(CourseData.ASSIGNMENTS)
         
-        assignment_resp = self.session.get('https://www.gradescope.com/courses/'+self.cid+'/assignments/'
-                                           +self.assignments[name].aid+'/edit')
+        assignment = self.assignments.get_entity(name=name, uid=assignment_id, entity=assignment)
+        
+        assignment_resp = self.session.get(
+            f'https://www.gradescope.com/courses/{self.course_id}/assignments/{assignment.assignment_id}/edit'
+        )
         parsed_assignment_resp = BeautifulSoup(assignment_resp.text, 'html.parser')
         authenticity_token = parsed_assignment_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
-
+        if ask_for_confirmation:
+            if not click.confirm(f"Found assignment:\n{assignment.format()}.\nAre you sure you want to remove?", default=False):
+                return
         remove_params = {
             "_method" : "delete",
             "authenticity_token" : authenticity_token
         }
 
-        remove_resp = self.session.post('https://www.gradescope.com/courses/'+self.cid+'/assignments/'
-                                     +self.assignments[name].aid,
-                                     data = remove_params)
+        remove_resp = self.session.post(
+            f'https://www.gradescope.com/courses/{self.course_id}/assignments/{assignment.assignment_id}',
+            data = remove_params
+        )
+        remove_resp.raise_for_status()
 
-        # TODO this is highly wasteful, need to likely improve this. 
-        self.assignments = {}
-        self._lazy_load_assignments()
+        self.assignments.remove_entity(name=name) 
 
     # ~~~~~~~~~~~~~~~~~~~~~~HOUSEKEEPING~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def _lazy_load_assignments(self):
-        '''
+        """
         Load the assignment dictionary from assignments. This is done lazily to avoid slowdown caused by getting
         all the assignments for all classes. Also makes us less vulnerable to blocking.
-        '''
-        assignment_resp = self.session.get('https://www.gradescope.com/courses/'+self.cid+'/assignments')
+        """
+        assignment_resp = self.session.get(f'https://www.gradescope.com/courses/{self.course_id}/assignments')
         parsed_assignment_resp = BeautifulSoup(assignment_resp.text, 'html.parser')
+        assignment_data = parsed_assignment_resp.findAll(
+            'div', attrs={'data-react-class': 'AssignmentsTable'}
+        )
+        if len(assignment_data) != 1:
+            raise HTMLParseError(f"Expected one AssignmentTable but got {len(assignment_data)}")
         
-        assignment_table = []
-        for assignment_row in parsed_assignment_resp.findAll('tr', class_ = 'js-assignmentTableAssignmentRow'):
-            row = []
-            for td in assignment_row.findAll('td'):
-                row.append(td)
-            assignment_table.append(row)
+        assignment_data = json.loads(assignment_data[0].get('data-react-props'))['table_data']
+        for row in assignment_data:
+            name = row['title']
+            aid = re.match(
+                "assignment_(\d+)",
+                row['id']
+            )
+            if not aid:
+                raise HTMLParseError("Could not parse assignment id")
+            aid = aid.group(1)
+
+            points = row['total_points']
+            submissions = row['num_active_submissions']
+            percent_graded = row['grading_progress']
+
+            regrades_on  = row['regrade_requests_possible']
+            self.assignments.add(
+                GSAssignment(
+                    name=name, assignment_id=aid, points=points, percent_graded=percent_graded, submissions=submissions, regrades_on=regrades_on, course=self
+                )
+            )
+        self._currently_loaded |= CourseData.ASSIGNMENTS
         
-        for row in assignment_table:
-            name = row[0].text
-            aid = row[0].find('a').get('href').rsplit('/',1)[1]
-            points = row[1].text
-            # TODO: (released,due) = parse(row[2])
-            submissions = row[3].text
-            percent_graded = row[4].text
-            complete = True if 'workflowCheck-complete' in row[5].get('class') else False
-            regrades_on  = False if row[6].text == 'OFF' else True
-            # TODO make these types reasonable
-            self.assignments[name] = GSAssignment(name, aid, points, percent_graded, complete, regrades_on, self)
-        self.state.add(LoadedCapabilities.ASSIGNMENTS)
-        pass
 
     def _lazy_load_roster(self):
-        '''
+        """
         Load the roster list  This is done lazily to avoid slowdown caused by getting
         all the rosters for all classes. Also makes us less vulnerable to blocking.
-        '''
-        membership_resp = self.session.get('https://www.gradescope.com/courses/' + self.cid + '/memberships')
+        """
+        membership_resp = self.session.get('https://www.gradescope.com/courses/' + self.course_id + '/memberships')
         parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
 
         roster_table = []
@@ -196,49 +239,52 @@ class GSCourse():
         for row in roster_table:
             name = row[0].text.rsplit(' ', 1)[0]
             data_id = row[0].find('button', class_ = 'rosterCell--editIcon').get('data-id')
-            if len(row) == 6:
-                email = row[1].text
-                role = row[2].find('option', selected="selected").text
-                submissions = int(row[3].text)
-                linked = True if 'statusIcon-active' in row[4].find('i').get('class') else False
-            else:
-                email = row[2].text
-                role = row[3].find('option', selected="selected").text
-                submissions = int(row[4].text)
-                linked = True if 'statusIcon-active' in row[5].find('i').get('class') else False
-            # TODO Make types reasonable.
-            self.roster[name] = GSPerson(name, data_id, email, role, submissions, linked)
-        self.state.add(LoadedCapabilities.ROSTER)
-        
-    def _check_capabilities(self, needed):
-        '''
-        checks if we have the needed data loaded and gets them lazily.
-        '''
-        missing = needed - self.state
-        if LoadedCapabilities.ASSIGNMENTS in missing:
-            self._lazy_load_assignments()
-        if LoadedCapabilities.ROSTER in missing:
-            self._lazy_load_roster()
 
-    def delete(self):
-        course_edit_resp = self.session.get('https://www.gradescope.com/courses/'+self.cid+'/edit')
+            email = row[1].text
+            role = row[2].find('option', selected="selected").text
+            submissions = int(row[3].text)
+            linked = True if 'statusIcon-active' in row[4].find('i').get('class') else False
+            self.roster.add(GSPerson(
+                name=name,
+                data_id=data_id,
+                email=email,
+                role_str=role,
+                num_submissions=submissions,
+                linked=linked
+            ))
+        self._currently_loaded |= CourseData.ROSTER
+        
+    def _load_necessary_data(self, needed_data: int):
+        """
+        checks if we have the needed data loaded and gets them lazily.
+        """
+        need_to_load = needed_data & ~self._currently_loaded
+        if need_to_load & CourseData.ROSTER:
+            self.update_roster()
+        if need_to_load & CourseData.ASSIGNMENTS:
+            self.update_assignments()
+
+    def delete(self, ask_for_confirmation: bool = True):
+        if ask_for_confirmation:
+            if not click.confirm(f"Are you sure you want to delete {self}?", default=False):
+                return
+        course_edit_resp = self.session.get(f'https://www.gradescope.com/courses/{self.course_id}/edit')
         parsed_course_edit_resp = BeautifulSoup(course_edit_resp.text, 'html.parser')
 
         authenticity_token = parsed_course_edit_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
-
-        print(authenticity_token)
-
         delete_params = {
             "_method": "delete",
             "authenticity_token": authenticity_token
         }
-        print(delete_params)
-
-        delete_resp = self.session.post('https://www.gradescope.com/courses/'+self.cid,
-                                        data = delete_params,
-                                        headers={
-                                            'referer': 'https://www.gradescope.com/courses/'+self.cid+'/edit',
-                                            'origin': 'https://www.gradescope.com'
-                                        })
-        
-        # TODO make this less brittle 
+        delete_resp = self.session.post(
+            f'https://www.gradescope.com/courses/{self.course_id}',
+            data = delete_params,
+            headers={
+                'referer': f'https://www.gradescope.com/courses/{self.course_id}/edit',
+                'origin': 'https://www.gradescope.com'
+            }
+        )
+        delete_resp.raise_for_status()
+    
+    def __str__(self):
+        return f"Course(name={self.name}, course_id={self.course_id}, year={self.year})"

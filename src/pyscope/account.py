@@ -1,52 +1,122 @@
 from bs4 import BeautifulSoup
+import re
+import click
+from typing import List
+
 from pyscope.course import GSCourse
+from pyscope.exceptions import HTMLParseError
 
 class GSAccount():
-    '''A class designed to track the account details (instructor and student courses'''
+    """A class designed to track the account details (instructor and student courses"""
 
     def __init__(self, email, session):
         self.email = email
         self.session = session
         self.instructor_courses = {}
         self.student_courses = {}
+        self.courses = {
+            True: self.instructor_courses,
+            False: self.student_courses
+        }
 
-    def add_class(self, cid, name, shortname, year, instructor = False):
-        if instructor:
-            self.instructor_courses[cid] = GSCourse(cid, name, shortname, year, self.session)
-        else:
-            self.student_courses[cid] = GSCourse(cid, name, shortname, year, self.session)
+    def add_class(self, course: GSCourse):
+        self.courses[course.instructor][course.course_id] = course
 
     # TODO add default exceptions when doing unsafe things.
-    def delete_class(self, cid):
-        self.instructor_courses[cid].delete()
-        del self.instructor_courses[cid]
+    def _delete_class(self, course: GSCourse, ask_for_confirmation: bool = True):
+        course.delete(ask_for_confirmation=ask_for_confirmation)
+        del self.instructor_courses[course.course_id]
+    
+    
+    def delete_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, ask_for_confirmation: bool = True):
+        def _check_match(course: GSCourse, course_id: str = None, course_name: str = None):
+            is_match = False
+            if course_id:
+                is_match = is_match or bool(re.match(course_id, course.course_id))
+            if course_name:
+                is_match = is_match or bool(re.match(course_name, course.name))
+            return is_match
+        courses_to_delete = []
+        if course_ids is None:
+            course_ids = []
+        if course_names is None:
+            course_names = []
+        
+        delete_identifiers = [{'course_id': course_id} for course_id in course_ids] + [{'course_name': course_name} for course_name in course_names]
+        all_courses = list(self.instructor_courses.values())
+        for course in all_courses:
+            for identifier in delete_identifiers:
+                if _check_match(course, **identifier):
+                    courses_to_delete.append(course)
+        for course in courses_to_delete:
+            self._delete_class(course, ask_for_confirmation=ask_for_confirmation)
 
-    def create_course(self, name, shortname, description, term, year, school, entry_code_enabled = False):
-        '''Returns course ID'''
+
+    def create_course(
+        self, 
+        name: str, 
+        nickname: str, 
+        description: str, 
+        term: str, 
+        year: str, 
+        school: str = None, 
+        entry_code_enabled: bool = False
+    ):
+        """Creates a course, and returns the course ID"""
         account_resp = self.session.get("https://www.gradescope.com/account")
         parsed_account_resp = BeautifulSoup(account_resp.text, 'html.parser')
 
-        create_modal = parsed_account_resp.find('div', id = 'createCourseModal')
+        create_modal = parsed_account_resp.find('dialog', id = 'createCourseModal')
         authenticity_token = create_modal.find('input', attrs = {'name': 'authenticity_token'}).get('value')
-        schools = create_modal.find('select', id = 'course_school_id')
-        school_id = schools.find('option', text = school).get('value') # TODO Fix this on bad params.
+        default_school = create_modal.find('input', attrs = {'name': 'course[school_name]'}).get('value')
+        if school is not None and default_school != school:
+            raise ValueError(f"Default school is {default_school}; course cannot be created for non-default school {school} programmatically. Please contact help@gradescope.com.")
+    
         course_data = {
             "utf8": "✓",
             "authenticity_token": authenticity_token,
-            "course[shortname]": shortname,
+            "course[shortname]": nickname,
             "course[name]": name,
             "course[description]": description,
             "course[term]": term,
             "course[year]": year,
-            "course[school_id]": school_id,
+            "course[school_id]": "1",
+            "course[school_name]": default_school,
             "course[entry_code_enabled]": 1 if entry_code_enabled else 0,
             "commit": "Create Course",
         }
         
         course_resp = self.session.post("https://www.gradescope.com/courses", params=course_data)
-        # TODO This is brittle
-        cid = course_resp.history[0].headers.get('Location').rsplit('/', 1)[1]
-        # TODO fix term, year union
-        self.add_class(cid, name, shortname, term+" "+year, instructor = True )
-        return cid
+        course_resp.raise_for_status()
+        course_id = re.match(
+            'Course ID: ([0-9]+)',
+            BeautifulSoup(course_resp.text, 'html.parser').find('div', class_='courseHeader--courseID').text
+        )
+
+        if not course_id:
+            raise HTMLParseError
+
+        course_id = course_id.group(1)
+    
+        self.add_class(
+            GSCourse(
+                name = name,
+                nickname = nickname,
+                course_id = course_id,
+                instructor = True,
+                year = f'{term} {year}',
+                session = self.session
+            )
+        )
+        return course_id
+    
+    def __str__(self):
+        repr = []
+        repr.append(f"Email: {self.email}")
+        repr.append(f"Session: {self.session}")
+        repr.append(f"Instructor Courses:")
+        repr.extend([f"\t{course}" for course in self.instructor_courses.values()])
+        repr.append(f"Student Courses:")
+        repr.extend([f"\t{course}" for course in self.student_courses.values()])
+        return '\n'.join(repr)
         

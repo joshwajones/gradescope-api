@@ -1,20 +1,27 @@
 import requests
 from bs4 import BeautifulSoup
-from pyscope.question import GSQuestion
 import json
+from dataclasses import dataclass
 
-class GSAssignment():
+from pyscope.question import GSQuestion
+from pyscope.pyscope_types import RosterType
 
-    def __init__(self, name, aid, points, percent_graded, complete, regrades_on, course):
-        '''Create a assignment object'''
-        self.name = name
-        self.aid = aid
-        self.points = points
-        self.percent_graded = percent_graded
-        self.complete = complete
-        self.regrades_on = regrades_on
-        self.course = course
+
+@dataclass
+class GSAssignment(RosterType):
+    name: str
+    assignment_id: str
+    points: int
+    percent_graded: float
+    submissions: int
+    regrades_on: bool
+    course: 'GSCourse'
+
+    def __post_init__(self):
         self.questions = []
+    
+    def unique_id(self) -> str:
+        return self.assignment_id
 
     def add_question(self, title, weight, crop = None, content = [], parent_id = None):
         new_q_data = [q.to_patch() for q in self.questions]
@@ -34,12 +41,12 @@ class GSAssignment():
         new_patch = {'assignment': {'identification_regions': {'name': None, 'sid': None}},
                      'question_data': new_q_data}
 
-        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.cid +
+        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.course_id +
                                                '/assignments/' + self.aid + '/outline/edit')
         parsed_outline_resp = BeautifulSoup(outline_resp.text, 'html.parser')
         authenticity_token = parsed_outline_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
 
-        patch_resp = self.course.session.patch('https://www.gradescope.com/courses/' + self.course.cid +
+        patch_resp = self.course.session.patch('https://www.gradescope.com/courses/' + self.course.course_id +
                                                '/assignments/' + self.aid + '/outline/',
                                                headers = {'x-csrf-token': authenticity_token,
                                                           'Content-Type': 'application/json'},
@@ -73,12 +80,12 @@ class GSAssignment():
         new_patch = {'assignment': {'identification_regions': {'name': None, 'sid': None}},
                      'question_data': new_q_data}
 
-        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.cid +
+        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.course_id +
                                                '/assignments/' + self.aid + '/outline/edit')
         parsed_outline_resp = BeautifulSoup(outline_resp.text, 'html.parser')
         authenticity_token = parsed_outline_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
 
-        patch_resp = self.course.session.patch('https://www.gradescope.com/courses/' + self.course.cid +
+        patch_resp = self.course.session.patch('https://www.gradescope.com/courses/' + self.course.course_id +
                                                '/assignments/' + self.aid + '/outline/',
                                                headers = {'x-csrf-token': authenticity_token,
                                                           'Content-Type': 'application/json'},
@@ -93,10 +100,10 @@ class GSAssignment():
         
     # TODO INCOMPLETE
     def add_instructor_submission(self, fname):
-        '''
+        """
         Upload a PDF submission.
-        '''
-        submission_resp = self.session.get('https://www.gradescope.com/courses/'+self.course.cid+
+        """
+        submission_resp = self.session.get('https://www.gradescope.com/courses/'+self.course.course_id+
                                            '/assignments/'+self.aid+'/submission_batches')
         parsed_assignment_resp = BeautifulSoup(submission_resp.text, 'html.parser')
         authenticity_token = parsed_assignment_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
@@ -105,7 +112,7 @@ class GSAssignment():
             "file" : open(template_file, 'rb')
         }
 
-        submission_resp = self.session.post('https://www.gradescope.com/courses/'+self.course.cid+
+        submission_resp = self.session.post('https://www.gradescope.com/courses/'+self.course.course_id+
                                             '/assignments/'+self.aid+'/submission_batches',
                                             files = assignment_files,
                                             headers = {'x-csrf-token': authenticity_token})
@@ -119,7 +126,7 @@ class GSAssignment():
         pass
 
     def _lazy_load_questions(self):        
-        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.cid +
+        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.course_id +
                                                '/assignments/' + self.aid + '/outline/edit')
         parsed_outline_resp = BeautifulSoup(outline_resp.text, 'html.parser')
 
@@ -147,5 +154,8 @@ class GSAssignment():
                 c_crop = subquestion['crop_rect_list']
                 children.append(GSQuestion(c_qid, c_title, c_weight, [], c_parent_id, c_content, c_crop))
             self.questions.append(GSQuestion(qid, title, weight, children, parent_id, content, crop))
+    
+    def format(self, prefix='\t'):
+        return f"{prefix}Name: {self.name}\n{prefix}ID: {self.assignment_id}"
             
         
