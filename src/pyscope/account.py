@@ -22,34 +22,44 @@ class GSAccount():
     def add_class(self, course: GSCourse):
         self.courses[course.instructor][course.course_id] = course
 
-    # TODO add default exceptions when doing unsafe things.
     def _delete_class(self, course: GSCourse, ask_for_confirmation: bool = True):
         course.delete(ask_for_confirmation=ask_for_confirmation)
         del self.instructor_courses[course.course_id]
     
-    
-    def delete_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, ask_for_confirmation: bool = True):
-        def _check_match(course: GSCourse, course_id: str = None, course_name: str = None):
+    def _find_classes_regex(self, *, course_ids: List[str] = None, course_names: List[str] = None, instructor: bool = None):
+        def _check_match(course: GSCourse, course_id: str = None, course_name: str = None, instructor: bool = None):
             is_match = False
             if course_id:
                 is_match = is_match or bool(re.match(course_id, course.course_id))
             if course_name:
                 is_match = is_match or bool(re.match(course_name, course.name))
+            if instructor is not None:
+                is_match = is_match and course.instructor == instructor
             return is_match
-        courses_to_delete = []
+
+        matched_courses = []
         if course_ids is None:
             course_ids = []
         if course_names is None:
             course_names = []
         
-        delete_identifiers = [{'course_id': course_id} for course_id in course_ids] + [{'course_name': course_name} for course_name in course_names]
+        identifiers = [{'course_id': course_id} for course_id in course_ids] + [{'course_name': course_name} for course_name in course_names]
+        
         all_courses = list(self.instructor_courses.values())
         for course in all_courses:
-            for identifier in delete_identifiers:
+            for identifier in identifiers:
                 if _check_match(course, **identifier):
-                    courses_to_delete.append(course)
+                    matched_courses.append(course)
+        
+        return matched_courses
+    
+    def delete_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, ask_for_confirmation: bool = True):
+        courses_to_delete = self._find_classes_regex(course_ids=course_ids, course_names=course_names, instructor=True)
         for course in courses_to_delete:
             self._delete_class(course, ask_for_confirmation=ask_for_confirmation)
+    
+    def get_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, instructor: bool = None):
+        return self._find_classes_regex(course_ids=course_ids, course_names=course_names, instructor=instructor)
 
 
     def create_course(

@@ -1,13 +1,10 @@
 import requests
 from bs4 import BeautifulSoup
-from enum import Enum
-import datetime
 
 from pyscope.account import GSAccount
 from pyscope.course import GSCourse
 from pyscope.utils import ConnState, CourseSplit
 from pyscope.exceptions import UninitializedAccountError
-from pyscope.person import GSRole
 
 class GSConnection():
     """The main connection class that keeps state about the current connection."""

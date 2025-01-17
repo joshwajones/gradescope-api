@@ -39,13 +39,9 @@ class GSRole(Enum):
 class GSPerson(RosterType):
     name: str
     data_id: str
+    sid: str
     email: str
-    num_submissions: int
-    linked: bool
-    role_str: str
-
-    def __post_init__(self):
-        self.role = GSRole.from_str(self.role_str)
+    role: GSRole = None
     
     def unique_id(self):
         return self.email

@@ -2,9 +2,13 @@ import requests
 from bs4 import BeautifulSoup
 import json
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Union
 
 from pyscope.question import GSQuestion
 from pyscope.pyscope_types import RosterType
+from pyscope.extension import GSExtension
+from pyscope.person import GSPerson
 
 
 @dataclass
@@ -15,6 +19,7 @@ class GSAssignment(RosterType):
     percent_graded: float
     submissions: int
     regrades_on: bool
+    session: requests.Session
     course: 'GSCourse'
 
     def __post_init__(self):
@@ -22,6 +27,10 @@ class GSAssignment(RosterType):
     
     def unique_id(self) -> str:
         return self.assignment_id
+
+    @property
+    def url(self):
+        return f'{self.course.url}/assignments/{self.assignment_id}'
 
     def add_question(self, title, weight, crop = None, content = [], parent_id = None):
         new_q_data = [q.to_patch() for q in self.questions]
@@ -41,13 +50,11 @@ class GSAssignment(RosterType):
         new_patch = {'assignment': {'identification_regions': {'name': None, 'sid': None}},
                      'question_data': new_q_data}
 
-        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.course_id +
-                                               '/assignments/' + self.aid + '/outline/edit')
+        outline_resp = self.course.session.get(f'{self.url}/outline/edit')
         parsed_outline_resp = BeautifulSoup(outline_resp.text, 'html.parser')
         authenticity_token = parsed_outline_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
 
-        patch_resp = self.course.session.patch('https://www.gradescope.com/courses/' + self.course.course_id +
-                                               '/assignments/' + self.aid + '/outline/',
+        patch_resp = self.course.session.patch(f'{self.url}/outline/',
                                                headers = {'x-csrf-token': authenticity_token,
                                                           'Content-Type': 'application/json'},
                                                data = json.dumps(new_patch,separators=(',',':')))
@@ -80,13 +87,11 @@ class GSAssignment(RosterType):
         new_patch = {'assignment': {'identification_regions': {'name': None, 'sid': None}},
                      'question_data': new_q_data}
 
-        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.course_id +
-                                               '/assignments/' + self.aid + '/outline/edit')
+        outline_resp = self.course.session.get(f'{self.url}/outline/edit')
         parsed_outline_resp = BeautifulSoup(outline_resp.text, 'html.parser')
         authenticity_token = parsed_outline_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
 
-        patch_resp = self.course.session.patch('https://www.gradescope.com/courses/' + self.course.course_id +
-                                               '/assignments/' + self.aid + '/outline/',
+        patch_resp = self.course.session.patch(f'{self.url}/outline/',
                                                headers = {'x-csrf-token': authenticity_token,
                                                           'Content-Type': 'application/json'},
                                                data = json.dumps(new_patch,separators=(',',':')))
@@ -103,18 +108,16 @@ class GSAssignment(RosterType):
         """
         Upload a PDF submission.
         """
-        submission_resp = self.session.get('https://www.gradescope.com/courses/'+self.course.course_id+
-                                           '/assignments/'+self.aid+'/submission_batches')
+        submission_resp = self.course.session.get(f'{self.url}/submission_batches')
         parsed_assignment_resp = BeautifulSoup(submission_resp.text, 'html.parser')
         authenticity_token = parsed_assignment_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
 
         submission_files = {
-            "file" : open(template_file, 'rb')
+            "file" : open(fname, 'rb')
         }
 
-        submission_resp = self.session.post('https://www.gradescope.com/courses/'+self.course.course_id+
-                                            '/assignments/'+self.aid+'/submission_batches',
-                                            files = assignment_files,
+        submission_resp = self.course.session.post(f'{self.url}/submission_batches',
+                                            files = submission_files,
                                             headers = {'x-csrf-token': authenticity_token})
         
     # TODO
@@ -126,8 +129,7 @@ class GSAssignment(RosterType):
         pass
 
     def _lazy_load_questions(self):        
-        outline_resp = self.course.session.get('https://www.gradescope.com/courses/' + self.course.course_id +
-                                               '/assignments/' + self.aid + '/outline/edit')
+        outline_resp = self.course.session.get(f'{self.url}/outline/edit')
         parsed_outline_resp = BeautifulSoup(outline_resp.text, 'html.parser')
 
         props = parsed_outline_resp.find('div',
@@ -155,6 +157,70 @@ class GSAssignment(RosterType):
                 children.append(GSQuestion(c_qid, c_title, c_weight, [], c_parent_id, c_content, c_crop))
             self.questions.append(GSQuestion(qid, title, weight, children, parent_id, content, crop))
     
+
+    # inspired by https://github.com/cs161-staff/gradescope-api/blob/master/src/gradescope_api/assignment.py
+    def _apply_extension(self, extension: GSExtension, revert_to_default_params: bool = False):
+        extension_url = f'{self.url}/extensions'
+        extension_resp = self.session.get(extension_url)
+        parsed_extension_resp = BeautifulSoup(extension_resp.text, 'html.parser')
+        props = parsed_extension_resp.find(
+            "li", {"data-react-class": "AddExtension"}
+        )["data-react-props"]
+        data = json.loads(props)
+        students = {row["email"]: row["id"] for row in data.get("students", [])}
+        student_id = students[extension.student.email] # NOT the same as extension.student.data_id
+        authenticity_token = parsed_extension_resp.find(
+            'meta', attrs={'name': 'csrf-token'}
+        )['content']
+        
+        def format_date(dt: Union[str, datetime]) -> str:
+            if isinstance(dt, str):
+                time = dt
+            elif isinstance(dt, datetime):
+                time = dt.strftime('%Y-%m-%dT%H:%M')
+            else:
+                raise TypeError
+            return {
+                'type': 'absolute',
+                'value': f'{time}'
+            }
+
+        new_settings = {'visible': True}
+        if revert_to_default_params:
+            new_settings['due_date'] = None
+            new_settings['hard_due_date'] = None
+            new_settings['release_date'] = None
+            new_settings['time_limit'] = None
+        else:
+            if extension.due_date:
+                new_settings['due_date'] = format_date(extension.due_date)
+            if extension.late_due_date:
+                new_settings['hard_due_date'] = format_date(extension.late_due_date)
+            if extension.release_date:
+                new_settings['release_date'] = format_date(extension.release_date)
+            if extension.time_limit_minutes:
+                new_settings['time_limit'] = {
+                    'type': 'absolute_minutes',
+                    'value': f'{extension.time_limit_minutes}'
+                }
+        payload = {
+            'override': {
+                'settings': new_settings,
+                'user_id': student_id,
+            }
+        }
+        headers = {'x-csrf-token': authenticity_token,'Content-Type': 'application/json'}
+        extension_resp = self.session.post(
+            extension_url, headers=headers, data=json.dumps(payload), timeout=20
+        )
+        extension_resp.raise_for_status()
+    
+    def apply_extension(self, extension: GSExtension):
+        self._apply_extension(extension)
+
+    def remove_extension(self, student: GSPerson):
+        self._apply_extension(GSExtension(student=student), revert_to_default_params=True)
+
     def format(self, prefix='\t'):
         return f"{prefix}Name: {self.name}\n{prefix}ID: {self.assignment_id}"
             
