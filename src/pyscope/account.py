@@ -1,6 +1,5 @@
 from bs4 import BeautifulSoup
 import re
-import click
 from typing import List
 
 from pyscope.course import GSCourse
@@ -97,7 +96,6 @@ class GSAccount():
         }
         
         course_resp = self.session.post("https://www.gradescope.com/courses", params=course_data)
-        course_resp.raise_for_status()
         course_id = re.match(
             'Course ID: ([0-9]+)',
             BeautifulSoup(course_resp.text, 'html.parser').find('div', class_='courseHeader--courseID').text

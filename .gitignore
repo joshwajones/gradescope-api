@@ -115,6 +115,9 @@ env.bak/
 venv.bak/
 uv.lock
 
+# VSCode settings
+.DS_Store
+
 # Spyder project settings
 .spyderproject
 .spyproject

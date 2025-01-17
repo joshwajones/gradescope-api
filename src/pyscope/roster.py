@@ -7,12 +7,12 @@ class Roster:
         self._uid_to_entity: Dict[UID, RosterType] = {}
 
     def add(self, entity: RosterType):
-        if entity.unique_id() in self._uid_to_entity:
-            raise ValueError(f"UID {entity.unique_id()} already in roster")
-        if entity.name not in self._name_to_entity:
-            self._name_to_entity[entity.name] = []
-        self._name_to_entity[entity.name].append(entity)
-        self._uid_to_entity[entity.unique_id()] = entity
+        if entity.get_unique_id() in self._uid_to_entity:
+            raise ValueError(f"UID {entity.get_unique_id()} already in roster")
+        if entity.get_name() not in self._name_to_entity:
+            self._name_to_entity[entity.get_name()] = []
+        self._name_to_entity[entity.get_name()].append(entity)
+        self._uid_to_entity[entity.get_unique_id()] = entity
     
     def _access(self, *, name: str = None, uid: UID = None, entity: RosterType = None, raise_error: bool = True):
         num_provided_fields = bool(name) + bool(uid) + bool(entity)
@@ -43,16 +43,21 @@ class Roster:
         entity = self._access(name=name, uid=uid, entity=entity, raise_error=raise_error)
         if not entity:
             return False
-        del self._uid_to_entity[entity.unique_id()]
-        if len(self._name_to_entity[entity.name]) == 1:
-            del self._name_to_entity[entity.name]
+        del self._uid_to_entity[entity.get_unique_id()]
+        if len(self._name_to_entity[entity.get_name()]) == 1:
+            del self._name_to_entity[entity.get_name()]
         else:
-            self._name_to_entity[entity.name].remove(entity)
+            self._name_to_entity[entity.get_name()].remove(entity)
         return True
     
     def get_entity(self, *, name: str = None, uid: UID = None, entity: RosterType = None, raise_error: bool = True):
         return self._access(name=name, uid=uid, entity=entity, raise_error=raise_error)
 
+    def get_all(self):
+        return list(self._uid_to_entity.values())
+
+    def __len__(self):
+        return len(self._uid_to_entity)
     
     def clear(self):
         self._name_to_entity = {}

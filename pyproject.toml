@@ -8,4 +8,5 @@ dependencies = [
     "bs4",
     "requests",
     "click",
+    "tqdm",
 ]

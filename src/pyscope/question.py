@@ -1,21 +1,49 @@
 from bs4 import BeautifulSoup
+from dataclasses import dataclass
 
-class GSQuestion():
+from pyscope.pyscope_types import QuestionType, RosterType, Crop
 
-    def __init__(self, qid, title, weight, children, parent_id, content, crop):
-        """Create a assignment object"""
-        self.title = title
-        self.qid = qid
-        self.children = children
-        self.weight = weight
-        self.parent_id = parent_id
-        self.content = content
-        self.crop = crop
-        
-    def to_patch(self):
-        children = [child.to_patch() for child in self.children]
-        output = {'id': self.qid, 'title': self.title, 'weight': self.weight, 'crop_rect_list': self.crop}
-        print('length of children:', len(self.children))
-        if len(children) != 0:
-            output['children'] = children
+@dataclass
+class GSQuestion(RosterType):
+    question_id: str
+    title: str
+    weight: float
+    children: list['GSQuestion']
+    type: QuestionType
+    parent_id: str
+    content: list[str]
+    crop: Crop
+
+    def get_name(self):
+        return self.title
+    
+    def get_unique_id(self):
+        return self.question_id
+
+    def format(self):
+        return f"{self.question_id}: {self.title}"
+
+    def serialize(self):
+        children = [child.serialize() for child in self.children]
+        output = {'id': self.question_id, 'title': self.title, 'weight': self.weight, 'crop_rect_list': self.crop, 'children': children, 'content': self.content}
         return output
+    
+    def find_id_recursive(self, id):
+        if self.question_id == id:
+            return self
+        for child in self.children:
+            found = child.find_id_recursive(id)
+            if found:
+                return found
+        return None
+    
+    def __hash__(self):
+        return hash(self.question_id)
+
+    @classmethod
+    def create_root(cls, children: list['GSQuestion']):
+        return cls(question_id=None, title="__ROOT__", weight=None, children=children, type=None, parent_id=None, content=None, crop=None)
+
+    @staticmethod
+    def default_crop():
+        return [{'x1': 0, 'x2': 0, 'y1': 0, 'y2': 0, 'page_number': 1}]

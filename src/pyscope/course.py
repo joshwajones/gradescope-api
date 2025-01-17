@@ -12,7 +12,8 @@ from pyscope.person import GSPerson, GSRole
 from pyscope.roster import Roster
 from pyscope.assignment import GSAssignment
 from pyscope.exceptions import HTMLParseError
-from pyscope.utils import CourseData, SubmissionType
+from pyscope.pyscope_types import CourseData, SubmissionType
+from pyscope.utils import get_csrf_token
 
 
 @dataclass
@@ -52,9 +53,7 @@ class GSCourse():
     ):
         self._load_necessary_data(CourseData.ROSTER)
 
-        membership_resp = self.session.get(f'{self.url}/memberships')
-        parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
-        authenticity_token = parsed_membership_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
+        authenticity_token = get_csrf_token(self)
         person_params = {
             "utf8": "✓",
             "user[name]" : name,
@@ -66,13 +65,11 @@ class GSCourse():
         if notify:
             person_params['notify_by_email'] = 1
 
-        add_resp = self.session.post(
+        self.session.post(
             f'{self.url}/memberships',
             data = person_params,
             headers = {'x-csrf-token': authenticity_token}
         )
-        
-        add_resp.raise_for_status()
 
         # Wasteful, but post response does not include new person's data id
         self._currently_loaded &= ~CourseData.ROSTER
@@ -80,10 +77,7 @@ class GSCourse():
     def remove_person(self, *, name: str = None, email: str = None, person: GSPerson = None, ask_for_confirmation: bool = True):
         self._load_necessary_data(CourseData.ROSTER)
         
-        membership_resp = self.session.get(f'{self.url}/memberships')
-        parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
-
-        authenticity_token = parsed_membership_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
+        authenticity_token = get_csrf_token(self)
         remove_params = {
             "_method" : "delete",
             "authenticity_token" : authenticity_token
@@ -93,31 +87,25 @@ class GSCourse():
             if not click.confirm(f"Found person:\n{person.format()}.\nAre you sure you want to remove?", default=False):
                 return
 
-        remove_resp = self.session.post(
+        self.session.post(
             f'https://www.gradescope.com/courses/{self.course_id}/memberships/{person.data_id}',
             data = remove_params,
             headers = {'x-csrf-token': authenticity_token}
         )
-        remove_resp.raise_for_status()
         self.roster.remove_entity(entity=person)
 
     def change_person_role(self, *, name: str = None, email: str = None, person: GSPerson = None, new_role: GSRole):
         self._load_necessary_data(CourseData.ROSTER)
-        
-        membership_resp = self.session.get(f'{self.url}/memberships')
-        parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
-
-        authenticity_token = parsed_membership_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
+        authenticity_token = get_csrf_token(self)
         role_params = {
             "course_membership[role]" : new_role.value,
         }
         person = self.roster.get_entity(name=name, uid=email, entity=person)
 
-        role_resp = self.session.patch(f'{self.url}/memberships/{person.data_id}/update_role',
+        self.session.patch(f'{self.url}/memberships/{person.data_id}/update_role',
             data = role_params,
             headers = {'x-csrf-token': authenticity_token}
         )
-        role_resp.raise_for_status()
         person.role = new_role
 
     def get_person(self, *, name: str = None, email: str = None, person: GSPerson = None):
@@ -138,10 +126,7 @@ class GSCourse():
         group_submissions: int = 0
     ):
         self._load_necessary_data(CourseData.ASSIGNMENTS)
-        
-        assignment_resp = self.session.get(f'{self.url}/assignments')
-        parsed_assignment_resp = BeautifulSoup(assignment_resp.text, 'html.parser')
-        authenticity_token = parsed_assignment_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
+        authenticity_token = get_csrf_token(self)
 
         assignment_params = {
             "authenticity_token" : authenticity_token,
@@ -156,24 +141,17 @@ class GSCourse():
         assignment_files = {
             "template_pdf" : open(template_file_path, 'rb')
         }
-        assignment_resp = self.session.post(f'{self.url}/assignments',
+        self.session.post(f'{self.url}/assignments',
                                             files = assignment_files,
                                             data = assignment_params)
-        assignment_resp.raise_for_status()
 
         # Wasteful, but post response does not include new assignment ID
         self._currently_loaded &= ~CourseData.ASSIGNMENTS
         
     def remove_assignment(self, *, name: str = None, assignment_id: str = None, assignment: GSAssignment = None, ask_for_confirmation: bool = True):
         self._load_necessary_data(CourseData.ASSIGNMENTS)
-        
         assignment = self.assignments.get_entity(name=name, uid=assignment_id, entity=assignment)
-        
-        assignment_resp = self.session.get(
-            f'{self.url}/assignments/{assignment.assignment_id}/edit'
-        )
-        parsed_assignment_resp = BeautifulSoup(assignment_resp.text, 'html.parser')
-        authenticity_token = parsed_assignment_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
+        authenticity_token = get_csrf_token(self)
         if ask_for_confirmation:
             if not click.confirm(f"Found assignment:\n{assignment.format()}.\nAre you sure you want to remove?", default=False):
                 return
@@ -182,11 +160,10 @@ class GSCourse():
             "authenticity_token" : authenticity_token
         }
 
-        remove_resp = self.session.post(
+        self.session.post(
             f'{self.url}/assignments/{assignment.assignment_id}',
             data = remove_params
         )
-        remove_resp.raise_for_status()
 
         self.assignments.remove_entity(name=name) 
     
@@ -283,15 +260,12 @@ class GSCourse():
         if ask_for_confirmation:
             if not click.confirm(f"Are you sure you want to delete {self}?", default=False):
                 return
-        course_edit_resp = self.session.get(f'{self.url}/edit')
-        parsed_course_edit_resp = BeautifulSoup(course_edit_resp.text, 'html.parser')
-
-        authenticity_token = parsed_course_edit_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
+        authenticity_token = get_csrf_token(self)
         delete_params = {
             "_method": "delete",
             "authenticity_token": authenticity_token
         }
-        delete_resp = self.session.post(
+        self.session.post(
             f'{self.url}',
             data = delete_params,
             headers={
@@ -299,7 +273,6 @@ class GSCourse():
                 'origin': 'https://www.gradescope.com'
             }
         )
-        delete_resp.raise_for_status()
     
     def __str__(self):
         return f"Course(name='{self.name}', course_id={self.course_id}, year='{self.year}')"

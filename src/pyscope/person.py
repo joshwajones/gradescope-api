@@ -43,10 +43,13 @@ class GSPerson(RosterType):
     email: str
     role: GSRole = None
     
-    def unique_id(self):
+    def get_name(self):
+        return self.name
+    
+    def get_unique_id(self):
         return self.email
     
     def format(self, prefix='\t'):
-        return f"{prefix}Name: {self.name}\n{prefix}Email: {self.email}\n{prefix}Role: {self.role_str}"
+        return f"{prefix}Name: {self.name}\n{prefix}Email: {self.email}\n{prefix}Role: {GSRole.to_str(self.role)}"
  
     

@@ -3,15 +3,16 @@ from bs4 import BeautifulSoup
 
 from pyscope.account import GSAccount
 from pyscope.course import GSCourse
-from pyscope.utils import ConnState, CourseSplit
+from pyscope.pyscope_types import ConnState, CourseSplit
 from pyscope.exceptions import UninitializedAccountError
+from pyscope.utils import SafeSession
 
 class GSConnection():
     """The main connection class that keeps state about the current connection."""
         
     def __init__(self):
         """Initialize the session for the connection."""
-        self.session = requests.Session()
+        self.session = SafeSession()
         self.state = ConnState.INIT
         self.account = None
 
@@ -36,7 +37,7 @@ class GSConnection():
             "session[remember_me]": 0,
             "commit": "Log In",
             "session[remember_me_sso]": 0,
-            "authenticity_token": auth_token,
+            "authenticity_tokedwewn": auth_token,
         }
         login_resp = self.session.post("https://www.gradescope.com/login", params=login_data)
         if len(login_resp.history) and login_resp.history[0].status_code == requests.codes.found:
