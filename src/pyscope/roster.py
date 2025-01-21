@@ -2,6 +2,10 @@ from typing import Dict
 from pyscope.pyscope_types import RosterType, UID
 
 class Roster:
+    """
+    A generic roster of entities, where each entity subclasses RosterType and thus has both a name (not necessarily unique) and a unique identifier.
+    Can be a roster of students, of assignments, etc.
+    """
     def __init__(self):
         self._name_to_entity: Dict[str, RosterType] = {}
         self._uid_to_entity: Dict[UID, RosterType] = {}

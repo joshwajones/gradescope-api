@@ -1,6 +1,5 @@
 from enum import Enum, IntFlag
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from abc import abstractmethod
 from typing import List, Dict
 
 UID = str
@@ -30,9 +29,8 @@ class CourseData(IntFlag):
     ASSIGNMENTS = 1
     ROSTER = 2
 
-@dataclass
-class RosterType:
 
+class RosterType:
     @abstractmethod
     def get_name(self) -> str:
         raise NotImplementedError
@@ -46,7 +44,7 @@ class RosterType:
         raise NotImplementedError
     
     def __hash__(self):
-        return self.get_unique_id()
+        return hash(self.get_unique_id())
 
 
 class QuestionType(Enum):
@@ -54,19 +52,19 @@ class QuestionType(Enum):
     QUESTION_GROUP = 1
 
     @classmethod
-    def str_to_enum(cls, s: str):
+    def str_to_enum(cls, s: str) -> "QuestionType":
         return {
             "FreeResponseQuestion": cls.FREE_RESPONSE,
             "QuestionGroup": cls.QUESTION_GROUP
         }[s]
     
     @classmethod
-    def enum_to_str(cls, e: "QuestionType"):
+    def enum_to_str(cls, e: "QuestionType") -> str:
         return {
             cls.FREE_RESPONSE: "FreeResponseQuestion",
             cls.QUESTION_GROUP: "QuestionGroup"
         }[e]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.enum_to_str(self)
 

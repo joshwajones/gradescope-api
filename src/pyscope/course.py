@@ -31,16 +31,17 @@ class GSCourse():
         self._currently_loaded = 0
     
     @property
-    def url(self):
+    def url(self) -> str:
         return f'https://www.gradescope.com/courses/{self.course_id}'
         
-    def update_roster(self):
+    def update_roster(self) -> None:
         self.roster.clear()
         self._lazy_load_roster()
     
-    def update_assignments(self):
+    def update_assignments(self) -> None:
         self.assignments.clear()
         self._lazy_load_assignments()
+
     # ~~~~~~~~~~~~~~~~~~~~~~PEOPLE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def add_person(
@@ -50,7 +51,7 @@ class GSCourse():
         role: GSRole, 
         sid: Optional[str] = None, 
         notify: bool = False
-    ):
+    ) -> None:
         self._load_necessary_data(CourseData.ROSTER)
 
         authenticity_token = get_csrf_token(self)
@@ -74,7 +75,7 @@ class GSCourse():
         # Wasteful, but post response does not include new person's data id
         self._currently_loaded &= ~CourseData.ROSTER
 
-    def remove_person(self, *, name: str = None, email: str = None, person: GSPerson = None, ask_for_confirmation: bool = True):
+    def remove_person(self, *, name: str = None, email: str = None, person: GSPerson = None, ask_for_confirmation: bool = True) -> None:
         self._load_necessary_data(CourseData.ROSTER)
         
         authenticity_token = get_csrf_token(self)
@@ -94,7 +95,7 @@ class GSCourse():
         )
         self.roster.remove_entity(entity=person)
 
-    def change_person_role(self, *, name: str = None, email: str = None, person: GSPerson = None, new_role: GSRole):
+    def change_person_role(self, *, name: str = None, email: str = None, person: GSPerson = None, new_role: GSRole) -> None:
         self._load_necessary_data(CourseData.ROSTER)
         authenticity_token = get_csrf_token(self)
         role_params = {
@@ -108,7 +109,7 @@ class GSCourse():
         )
         person.role = new_role
 
-    def get_person(self, *, name: str = None, email: str = None, person: GSPerson = None):
+    def get_person(self, *, name: str = None, email: str = None, person: GSPerson = None) -> GSPerson:
         self._load_necessary_data(CourseData.ROSTER)
         return self.roster.get_entity(name=name, uid=email, entity=person, raise_error=False)
 
@@ -124,7 +125,7 @@ class GSCourse():
         student_submissions: bool = True,
         late_submissions: bool = False,
         group_submissions: int = 0
-    ):
+    ) -> None:
         self._load_necessary_data(CourseData.ASSIGNMENTS)
         authenticity_token = get_csrf_token(self)
 
@@ -148,7 +149,7 @@ class GSCourse():
         # Wasteful, but post response does not include new assignment ID
         self._currently_loaded &= ~CourseData.ASSIGNMENTS
         
-    def remove_assignment(self, *, name: str = None, assignment_id: str = None, assignment: GSAssignment = None, ask_for_confirmation: bool = True):
+    def remove_assignment(self, *, name: str = None, assignment_id: str = None, assignment: GSAssignment = None, ask_for_confirmation: bool = True) -> None:
         self._load_necessary_data(CourseData.ASSIGNMENTS)
         assignment = self.assignments.get_entity(name=name, uid=assignment_id, entity=assignment)
         authenticity_token = get_csrf_token(self)
@@ -167,13 +168,13 @@ class GSCourse():
 
         self.assignments.remove_entity(name=name) 
     
-    def get_assignment(self, *, name: str = None, assignment_id: str = None, assignment: GSAssignment = None):
+    def get_assignment(self, *, name: str = None, assignment_id: str = None, assignment: GSAssignment = None) -> GSAssignment:
         self._load_necessary_data(CourseData.ASSIGNMENTS)
         return self.assignments.get_entity(name=name, uid=assignment_id, entity=assignment)
 
     # ~~~~~~~~~~~~~~~~~~~~~~HOUSEKEEPING~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def _lazy_load_assignments(self):
+    def _lazy_load_assignments(self) -> None:
         """
         Load the assignment dictionary from assignments. This is done lazily to avoid slowdown caused by getting
         all the assignments for all classes. Also makes us less vulnerable to blocking.
@@ -210,7 +211,7 @@ class GSCourse():
         self._currently_loaded |= CourseData.ASSIGNMENTS
         
 
-    def _lazy_load_roster(self):
+    def _lazy_load_roster(self) -> None:
         """
         Load the roster list  This is done lazily to avoid slowdown caused by getting
         all the rosters for all classes. Also makes us less vulnerable to blocking.
@@ -246,7 +247,7 @@ class GSCourse():
             ))
         self._currently_loaded |= CourseData.ROSTER
         
-    def _load_necessary_data(self, needed_data: int):
+    def _load_necessary_data(self, needed_data: int) -> None:
         """
         checks if we have the needed data loaded and gets them lazily.
         """
@@ -256,7 +257,7 @@ class GSCourse():
         if need_to_load & CourseData.ASSIGNMENTS:
             self.update_assignments()
 
-    def delete(self, ask_for_confirmation: bool = True):
+    def delete(self, ask_for_confirmation: bool = True) -> None:
         if ask_for_confirmation:
             if not click.confirm(f"Are you sure you want to delete {self}?", default=False):
                 return
@@ -274,5 +275,5 @@ class GSCourse():
             }
         )
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Course(name='{self.name}', course_id={self.course_id}, year='{self.year}')"

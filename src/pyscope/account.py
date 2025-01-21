@@ -6,9 +6,11 @@ from pyscope.course import GSCourse
 from pyscope.exceptions import HTMLParseError
 
 class GSAccount():
-    """A class designed to track the account details (instructor and student courses"""
+    """
+    Class to represent a Gradescope account, primarily tracking courses.
+    """
 
-    def __init__(self, email, session):
+    def __init__(self, email: str, session: str):
         self.email = email
         self.session = session
         self.instructor_courses = {}
@@ -18,14 +20,18 @@ class GSAccount():
             False: self.student_courses
         }
 
-    def add_class(self, course: GSCourse):
+    def _add_class(self, course: GSCourse) -> None:
         self.courses[course.instructor][course.course_id] = course
+    
+    def add_classes(self, courses: List[GSCourse]) -> None:
+        for course in courses:
+            self._add_class(course)
 
-    def _delete_class(self, course: GSCourse, ask_for_confirmation: bool = True):
+    def _delete_class(self, course: GSCourse, ask_for_confirmation: bool = True) -> None:
         course.delete(ask_for_confirmation=ask_for_confirmation)
         del self.instructor_courses[course.course_id]
     
-    def _find_classes_regex(self, *, course_ids: List[str] = None, course_names: List[str] = None, instructor: bool = None):
+    def _find_classes_regex(self, *, course_ids: List[str] = None, course_names: List[str] = None, instructor: bool = None) -> List[GSCourse]:
         def _check_match(course: GSCourse, course_id: str = None, course_name: str = None, instructor: bool = None):
             is_match = False
             if course_id:
@@ -44,7 +50,11 @@ class GSAccount():
         
         identifiers = [{'course_id': course_id} for course_id in course_ids] + [{'course_name': course_name} for course_name in course_names]
         
-        all_courses = list(self.instructor_courses.values())
+        if instructor is not None:
+            all_courses = list(self.courses[instructor].values())
+        else:
+            all_courses = list(self.instructor_courses.values()) + list(self.student_courses.values())
+    
         for course in all_courses:
             for identifier in identifiers:
                 if _check_match(course, **identifier):
@@ -52,12 +62,12 @@ class GSAccount():
         
         return matched_courses
     
-    def delete_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, ask_for_confirmation: bool = True):
+    def delete_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, ask_for_confirmation: bool = True) -> None:
         courses_to_delete = self._find_classes_regex(course_ids=course_ids, course_names=course_names, instructor=True)
         for course in courses_to_delete:
             self._delete_class(course, ask_for_confirmation=ask_for_confirmation)
     
-    def get_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, instructor: bool = None):
+    def get_classes(self, *, course_ids: List[str] = None, course_names: List[str] = None, instructor: bool = None) -> List[GSCourse]:
         return self._find_classes_regex(course_ids=course_ids, course_names=course_names, instructor=instructor)
 
 
@@ -70,7 +80,7 @@ class GSAccount():
         year: str, 
         school: str = None, 
         entry_code_enabled: bool = False
-    ):
+    ) -> str:
         """Creates a course, and returns the course ID"""
         account_resp = self.session.get("https://www.gradescope.com/account")
         parsed_account_resp = BeautifulSoup(account_resp.text, 'html.parser')

@@ -7,20 +7,15 @@ from pyscope.pyscope_types import ConnState, CourseSplit
 from pyscope.exceptions import UninitializedAccountError
 from pyscope.utils import SafeSession
 
-class GSConnection():
-    """The main connection class that keeps state about the current connection."""
-        
+class GSConnection:
+    """Tracks the current session/connection to Gradescope."""
+
     def __init__(self):
-        """Initialize the session for the connection."""
         self.session = SafeSession()
         self.state = ConnState.INIT
         self.account = None
 
-    def login(self, email, pswd):
-        """
-        Login to gradescope using email and password.
-        Note that the future commands depend on account privilages.
-        """
+    def login(self, email: str, pswd: str) -> bool:
         login_success = False
         init_resp = self.session.get("https://www.gradescope.com/")
         parsed_init_resp = BeautifulSoup(init_resp.text, 'html.parser')
@@ -37,7 +32,7 @@ class GSConnection():
             "session[remember_me]": 0,
             "commit": "Log In",
             "session[remember_me_sso]": 0,
-            "authenticity_tokedwewn": auth_token,
+            "authenticity_token": auth_token,
         }
         login_resp = self.session.post("https://www.gradescope.com/login", params=login_data)
         if len(login_resp.history) and login_resp.history[0].status_code == requests.codes.found:
@@ -47,7 +42,7 @@ class GSConnection():
 
         return login_success
 
-    def get_courses(self, split: CourseSplit = CourseSplit.ALL):
+    def load_courses(self, split: CourseSplit = CourseSplit.ALL):
         account_resp = self.session.get("https://www.gradescope.com/account")
         parsed_account_resp = BeautifulSoup(account_resp.text, 'html.parser')
 
@@ -83,14 +78,7 @@ class GSConnection():
         return course_list
 
 
-    def get_account(self):
-        """
-        Gets and parses account data after login. Note will return false if we are not in a logged in state, but 
-        this is subject to change.
-        """
+    def load_account_data(self):
         if self.state != ConnState.LOGGED_IN:
             raise UninitializedAccountError
-        
-        all_courses = self.get_courses()
-        for course in all_courses:
-            self.account.add_class(course)
+        self.account.add_classes(self.load_courses())

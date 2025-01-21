@@ -31,20 +31,20 @@ class GSAssignment(RosterType):
         self.questions = Roster()
         self._loaded_questions = False
     
-    def get_name(self):
+    def get_name(self) -> str:
         return self.name
     
     def get_unique_id(self) -> str:
         return self.assignment_id
 
     @property
-    def url(self):
+    def url(self) -> str:
         return f'{self.course.url}/assignments/{self.assignment_id}'
 
-    def serialize_questions(self):
+    def serialize_questions(self) -> dict:
         return self.root.serialize()
     
-    def _find_question_parent(self, parent_id):
+    def _find_question_parent(self, parent_id: str) -> GSQuestion:
         self._load_questions_if_needed()
         def _find_recursive(curr_q: GSQuestion, parent_id: str):
             if curr_q.question_id == parent_id:
@@ -57,11 +57,11 @@ class GSAssignment(RosterType):
             return None
         return _find_recursive(self.root, parent_id)
     
-    def get_question(self, *, question_id: str = None, title: str = None, question: GSQuestion = None):
+    def get_question(self, *, question_id: str = None, title: str = None, question: GSQuestion = None) -> GSQuestion:
         self._load_questions_if_needed()
         return self.questions.get_entity(uid=question_id, name=title, entity=question)
     
-    def add_question(self, title, weight, crop = None, content = [], parent_id = None):
+    def add_question(self, title, weight, crop = None, content = [], parent_id = None) -> None:
         self._load_questions_if_needed()
 
         new_crop = crop if crop else GSQuestion.default_crop()
@@ -102,7 +102,7 @@ class GSAssignment(RosterType):
         # Wastful, but response does not include the new question ID
         self._loaded_questions = False
 
-    def remove_question(self, *, question_id: str = None, title: str = None, question: GSQuestion = None):
+    def remove_question(self, *, question_id: str = None, title: str = None, question: GSQuestion = None) -> None:
         self._load_questions_if_needed()
         question = self.get_question(question_id=question_id, title=title, question=question)
 
@@ -123,7 +123,7 @@ class GSAssignment(RosterType):
 
         self.questions.remove_entity(entity=question)
     
-    def _match_questions_regex(self, *, question_ids: list[str] = None, question_titles: list[str] = None):
+    def _match_questions_regex(self, *, question_ids: list[str] = None, question_titles: list[str] = None) -> list[GSQuestion]:
         def _check_match(question: GSQuestion, question_id: str = None, question_title: str = None):
             is_match = False
             if question_id:
@@ -149,7 +149,7 @@ class GSAssignment(RosterType):
         
         return matched_questions
     
-    def remove_questions(self, *, question_ids: list[str] = None, question_titles: list[str] = None, questions: list[GSQuestion] = None):
+    def remove_questions(self, *, question_ids: list[str] = None, question_titles: list[str] = None, questions: list[GSQuestion] = None) -> None:
         self._load_questions_if_needed()
         if questions is None:
             questions = []
@@ -158,7 +158,7 @@ class GSAssignment(RosterType):
         for question in matched_questions:
             self.remove_question(question=question)
     
-    def add_instructor_submission(self, fname):
+    def add_instructor_submission(self, fname : str) -> None:
         """
         Upload a PDF submission.
         """
@@ -172,7 +172,7 @@ class GSAssignment(RosterType):
             headers = {'x-csrf-token': authenticity_token}
         )
         
-    def _change_publish_status(self, published: bool):
+    def _change_publish_status(self, published: bool) -> None:
         authenticity_token = get_csrf_token(self.course)
         data = {"assignment[published]": "true" if published else "false"}
         self.session.patch(
@@ -181,20 +181,20 @@ class GSAssignment(RosterType):
             headers={'x-csrf-token': authenticity_token}
         )
 
-    def publish_grades(self):
+    def publish_grades(self) -> None:
         self._change_publish_status(published=True)
 
-    def unpublish_grades(self):
+    def unpublish_grades(self) -> None:
         self._change_publish_status(published=False)
 
-    def export_evaluations(self, fname: str = None):
+    def export_evaluations(self, fname: str = None) -> bytes:
         data = self.session.get(f'{self.url}/export_evaluations').content
         if fname: 
             with open(fname, 'wb') as f:
                 f.write(data)
         return data
     
-    def download_grades(self, fname: str):
+    def download_grades(self, fname: str) -> str:
         response = self.session.get(f'{self.url}/scores.csv')
         if fname:
             if not fname.endswith('.csv'):
@@ -211,7 +211,7 @@ class GSAssignment(RosterType):
         sleep_time: float = 1, 
         chunk_size: int = 8192,
         show_bar: bool = True,
-    ):
+    ) -> None:
         def _get_default_fname():
             if unzip:
                 return './'
@@ -251,11 +251,11 @@ class GSAssignment(RosterType):
         logging.debug(f'Downloaded in {download_end_time - download_start_time} seconds.')
         
 
-    def _load_questions_if_needed(self):
+    def _load_questions_if_needed(self) -> None:
         if not self._loaded_questions:
             self._lazy_load_questions()
 
-    def _lazy_load_questions(self):
+    def _lazy_load_questions(self) -> None:
         self.questions.clear()       
         outline_resp = self.session.get(f'{self.url}/outline/edit')
         parsed_outline_resp = BeautifulSoup(outline_resp.text, 'html.parser')
@@ -285,7 +285,7 @@ class GSAssignment(RosterType):
     
 
     # inspired by https://github.com/cs161-staff/gradescope-api/blob/master/src/gradescope_api/assignment.py
-    def _apply_extension(self, extension: GSExtension, revert_to_default_params: bool = False):
+    def _apply_extension(self, extension: GSExtension, revert_to_default_params: bool = False) -> None:
         extension_url = f'{self.url}/extensions'
         extension_resp = self.session.get(extension_url)
         parsed_extension_resp = BeautifulSoup(extension_resp.text, 'html.parser')
@@ -340,11 +340,11 @@ class GSAssignment(RosterType):
             extension_url, headers=headers, data=json.dumps(payload), timeout=20
         )
     
-    def apply_extension(self, extension: GSExtension):
+    def apply_extension(self, extension: GSExtension) -> None:
         self._apply_extension(extension)
 
-    def remove_extension(self, student: GSPerson):
+    def remove_extension(self, student: GSPerson) -> None:
         self._apply_extension(GSExtension(student=student), revert_to_default_params=True)
 
-    def format(self, prefix='\t'):
+    def format(self, prefix='\t') -> str:
         return f"{prefix}Name: {self.name}\n{prefix}ID: {self.assignment_id}"

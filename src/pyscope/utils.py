@@ -6,6 +6,7 @@ import logging
 from bs4 import BeautifulSoup
 
 class DummyBar:
+    """ Dummy progress bar for when tqdm is not available or user has disabled it """
     def __init__(self, *args, **kwargs):
         pass
 
@@ -19,14 +20,14 @@ class DummyBar:
         pass
 
 
-def get_csrf_token(course: "GSCourse"):
+def get_csrf_token(course: "GSCourse") -> str:
     membership_resp = course.session.get(f'{course.url}/memberships')
     parsed_membership_resp = BeautifulSoup(membership_resp.text, 'html.parser')
     authenticity_token = parsed_membership_resp.find('meta', attrs = {'name': 'csrf-token'} ).get('content')
     return authenticity_token
 
 
-def byte_to_mb(bytes):
+def byte_to_mb(bytes: int) -> float:
     return float(bytes) / (1024 * 1024)
 
 
@@ -46,6 +47,8 @@ def stream_file(
         url (str): The URL of the ZIP file to download.
         extract_to (str): The directory to extract the contents to.
         chunk_size (int): The size of each chunk to download.
+        unzip (bool): Whether to unzip the file after downloading.
+        show_bar (bool): Whether to show a progress bar.
     """
     bar_constructor = DummyBar if not show_bar else tqdm
     with session.get(url, stream=True) as response:
@@ -76,6 +79,9 @@ def stream_file(
 
 
 class SafeSession(requests.Session):
+    """
+    A thin wrapper around requests.Session that by default checks for errors, and dumps some debug info
+    """
     def request(self, method, url, *args, _raise=True, **kwargs):
         response = super().request(method, url, **kwargs)
         if _raise:

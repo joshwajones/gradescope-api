@@ -10,7 +10,7 @@ class GSRole(Enum):
     TA = 2
     READER = 3
     
-    def from_str(val):
+    def from_str(val: str) -> 'GSRole':
         if isinstance(val, GSRole):
             return val
         strings = {
@@ -25,7 +25,7 @@ class GSRole(Enum):
         else:
             raise GSRoleException("Not a valid role string: " + role)  
 
-    def to_str(val):
+    def to_str(val: 'GSRole') -> str:
         strings = {
             GSRole.INSTRUCTOR : 'Instructor',
             GSRole.STUDENT : 'Student',
@@ -43,10 +43,10 @@ class GSPerson(RosterType):
     email: str
     role: GSRole = None
     
-    def get_name(self):
+    def get_name(self) -> str:
         return self.name
     
-    def get_unique_id(self):
+    def get_unique_id(self) -> str:
         return self.email
     
     def format(self, prefix='\t'):

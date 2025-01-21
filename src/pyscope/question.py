@@ -14,21 +14,21 @@ class GSQuestion(RosterType):
     content: list[str]
     crop: Crop
 
-    def get_name(self):
+    def get_name(self) -> str:
         return self.title
     
-    def get_unique_id(self):
+    def get_unique_id(self) -> str:
         return self.question_id
 
-    def format(self):
+    def format(self) -> str:
         return f"{self.question_id}: {self.title}"
 
-    def serialize(self):
+    def serialize(self) -> dict:
         children = [child.serialize() for child in self.children]
         output = {'id': self.question_id, 'title': self.title, 'weight': self.weight, 'crop_rect_list': self.crop, 'children': children, 'content': self.content}
         return output
     
-    def find_id_recursive(self, id):
+    def find_id_recursive(self, id) -> 'GSQuestion':
         if self.question_id == id:
             return self
         for child in self.children:
@@ -37,13 +37,13 @@ class GSQuestion(RosterType):
                 return found
         return None
     
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.question_id)
 
     @classmethod
-    def create_root(cls, children: list['GSQuestion']):
+    def create_root(cls, children: list['GSQuestion']) -> 'GSQuestion':
         return cls(question_id=None, title="__ROOT__", weight=None, children=children, type=None, parent_id=None, content=None, crop=None)
 
     @staticmethod
-    def default_crop():
+    def default_crop() -> Crop:
         return [{'x1': 0, 'x2': 0, 'y1': 0, 'y2': 0, 'page_number': 1}]
