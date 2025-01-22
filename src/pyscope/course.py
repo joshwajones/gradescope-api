@@ -209,11 +209,26 @@ class GSCourse():
             points = row['total_points']
             submissions = row['num_active_submissions']
             percent_graded = row['grading_progress']
+            release_date = datetime.fromisoformat(row['submission_window']['release_date'])
+            due_date = datetime.fromisoformat(row['submission_window']['due_date'])
+            hard_due_date = datetime.fromisoformat(row['submission_window']['hard_due_date']) if row['submission_window']['hard_due_date'] else due_date
+            time_limit = row['submission_window']['time_limit']
 
             regrades_on  = row['regrade_requests_possible']
             self.assignments.add(
                 GSAssignment(
-                    name=name, assignment_id=aid, points=points, percent_graded=percent_graded, session=self.session, submissions=submissions, regrades_on=regrades_on, course=self
+                    name=name, 
+                    assignment_id=aid, 
+                    points=points, 
+                    percent_graded=percent_graded, 
+                    session=self.session, 
+                    submissions=submissions, 
+                    regrades_on=regrades_on, 
+                    release_date=release_date, 
+                    due_date=due_date, 
+                    hard_due_date=hard_due_date, 
+                    time_limit=time_limit, 
+                    course=self
                 )
             )
         self._currently_loaded |= CourseData.ASSIGNMENTS

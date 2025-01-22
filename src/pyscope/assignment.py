@@ -24,6 +24,11 @@ class GSAssignment(RosterType):
     percent_graded: float
     submissions: int
     regrades_on: bool
+    release_date: datetime
+    due_date: datetime
+    hard_due_date: datetime
+    time_limit: int
+
     session: requests.Session
     course: 'GSCourse'
 
@@ -298,37 +303,7 @@ class GSAssignment(RosterType):
         authenticity_token = parsed_extension_resp.find(
             'meta', attrs={'name': 'csrf-token'}
         )['content']
-        
-        def format_date(dt: Union[str, datetime]) -> str:
-            if isinstance(dt, str):
-                time = dt
-            elif isinstance(dt, datetime):
-                time = dt.strftime('%Y-%m-%dT%H:%M')
-            else:
-                raise TypeError
-            return {
-                'type': 'absolute',
-                'value': f'{time}'
-            }
-
-        new_settings = {'visible': True}
-        if revert_to_default_params:
-            new_settings['due_date'] = None
-            new_settings['hard_due_date'] = None
-            new_settings['release_date'] = None
-            new_settings['time_limit'] = None
-        else:
-            if extension.due_date:
-                new_settings['due_date'] = format_date(extension.due_date)
-            if extension.late_due_date:
-                new_settings['hard_due_date'] = format_date(extension.late_due_date)
-            if extension.release_date:
-                new_settings['release_date'] = format_date(extension.release_date)
-            if extension.time_limit_minutes:
-                new_settings['time_limit'] = {
-                    'type': 'absolute_minutes',
-                    'value': f'{extension.time_limit_minutes}'
-                }
+        new_settings = {'visible': True} | extension.get_extension_data(self)
         payload = {
             'override': {
                 'settings': new_settings,
