@@ -23,6 +23,9 @@ class GSAccount():
     def _add_class(self, course: GSCourse) -> None:
         self.courses[course.instructor][course.course_id] = course
     
+    def add_class(self, course: GSCourse) -> None:
+        self._add_class(course)
+    
     def add_classes(self, courses: List[GSCourse]) -> None:
         for course in courses:
             self._add_class(course)

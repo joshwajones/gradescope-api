@@ -112,6 +112,10 @@ class GSCourse():
     def get_person(self, *, name: str = None, email: str = None, person: GSPerson = None) -> GSPerson:
         self._load_necessary_data(CourseData.ROSTER)
         return self.roster.get_entity(name=name, uid=email, entity=person, raise_error=False)
+    
+    def get_all_people(self) -> list[GSPerson]:
+        self._load_necessary_data(CourseData.ROSTER)
+        return self.roster.get_all()
 
     # ~~~~~~~~~~~~~~~~~~~~~~ASSIGNMENTS~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -172,6 +176,10 @@ class GSCourse():
         self._load_necessary_data(CourseData.ASSIGNMENTS)
         return self.assignments.get_entity(name=name, uid=assignment_id, entity=assignment)
 
+    def get_all_assignments(self) -> list[GSAssignment]:
+        self._load_necessary_data(CourseData.ASSIGNMENTS)
+        return self.assignments.get_all()
+    
     # ~~~~~~~~~~~~~~~~~~~~~~HOUSEKEEPING~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def _lazy_load_assignments(self) -> None:
