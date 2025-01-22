@@ -82,3 +82,16 @@ class GSConnection:
         if self.state != ConnState.LOGGED_IN:
             raise UninitializedAccountError
         self.account.add_classes(self.load_courses())
+    
+
+    @classmethod
+    def get_course(
+        cls, email: str, password: str, course_id: str, instructor: bool = True
+    ) -> GSCourse:
+        conn = cls()
+        conn.login(email, password)
+        conn.load_account_data()
+        matched_courses = conn.account.get_classes(course_ids=[course_id], instructor=instructor)
+        if len(matched_courses) != 1:
+            raise ValueError(f"Found {len(matched_courses)} courses with id {course_id}; expected 1.")
+        return matched_courses[0]
