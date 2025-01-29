@@ -26,9 +26,7 @@ def create_test_course(conn: GSConnection) -> GSAssignment:
         year="2026",
         entry_code_enabled=False,
     )
-    matched_courses = account.get_classes(
-        course_names=[TEST_COURSE_NAME], instructor=True
-    )
+    matched_courses = account.get_classes(course_names=[TEST_COURSE_NAME], instructor=True)
     assert len(matched_courses) == 1
 
     course: GSCourse = matched_courses[0]
@@ -88,9 +86,7 @@ def create_test_course(conn: GSConnection) -> GSAssignment:
     all_people = course.get_all_people()
     assert len(all_people) == 4
     name_to_person = {person.name: person for person in all_people}
-    assert {"Test Person 1", "Test Person 2", "Test Person 5"} <= set(
-        name_to_person.keys()
-    )
+    assert {"Test Person 1", "Test Person 2", "Test Person 5"} <= set(name_to_person.keys())
 
     return course
 
@@ -119,9 +115,7 @@ def create_test_assignment(course: GSCourse) -> GSAssignment:
     assignments = course.get_all_assignments()
     assert len(assignments) == 3
     names = [assignment.name for assignment in assignments]
-    assert set(names) == set(
-        ["Test Assignment", "Test Assignment 2", "Test Assignment 3"]
-    )
+    assert set(names) == set(["Test Assignment", "Test Assignment 2", "Test Assignment 3"])
 
     course.remove_assignment(name="Test Assignment 3", ask_for_confirmation=False)
     assignments = course.get_all_assignments()
@@ -182,18 +176,14 @@ def add_questions(conn: GSConnection, asn: GSAssignment):
 
 
 def add_instructor_submission(asn: GSAssignment):
-    asn.add_instructor_submission(
-        fname=os.path.join(os.path.dirname(__file__), "test_pdf.pdf")
-    )
+    asn.add_instructor_submission(fname=os.path.join(os.path.dirname(__file__), "test_pdf.pdf"))
 
 
 def download_submissions(asn: GSAssignment):
     asn.download_submissions()
 
 
-def run_tests(
-    course_name: str = None, assignment_name: str = None, course_id: str = None
-):
+def run_tests(course_name: str = None, assignment_name: str = None, course_id: str = None):
     conn = GSConnection()
     conn.login(email, password)
     conn.load_account_data()
@@ -204,13 +194,11 @@ def run_tests(
         if assignment_name is None:
             assignment_name = "Test Assignment"
         if course_id is None:
-            course_id = conn.account.get_classes(
-                course_names=[course_name], instructor=True
-            )[0].course_id
+            course_id = conn.account.get_classes(course_names=[course_name], instructor=True)[
+                0
+            ].course_id
 
-        test_course = conn.account.get_classes(course_ids=[course_id], instructor=True)[
-            0
-        ]
+        test_course = conn.account.get_classes(course_ids=[course_id], instructor=True)[0]
         test_asn = test_course.get_assignment(name=assignment_name)
     else:
         test_course = create_test_course(conn)

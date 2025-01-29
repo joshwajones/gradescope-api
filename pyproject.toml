@@ -10,7 +10,9 @@ dependencies = [
     "click",
     "tqdm",
     "pre-commit",
-    "black",
-    "flake8",
-    "isort"
+    "ruff"
 ]
+
+[tool.ruff]
+line-length = 100 
+target-version = 'py311'

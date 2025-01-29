@@ -28,9 +28,7 @@ class GSExtension:
         release_date = assignment.release_date
         due_date = assignment.due_date
         late_due_date = (
-            assignment.hard_due_date
-            if assignment.hard_due_date
-            else assignment.due_date
+            assignment.hard_due_date if assignment.hard_due_date else assignment.due_date
         )
         time_limit_minutes = assignment.time_limit
 
@@ -51,9 +49,7 @@ class GSExtension:
             late_due_date += self.fields["late_due_delta"]
         if "limit_multipler" in self.fields:
             time_limit_minutes = (
-                self.fields["limit_multipler"] * time_limit_minutes
-                if time_limit_minutes
-                else None
+                self.fields["limit_multipler"] * time_limit_minutes if time_limit_minutes else None
             )
 
         data = {
@@ -78,9 +74,7 @@ class GSExtension:
     def create(cls, **kwargs):
         def _validate_kwargs():
             if not set(kwargs) <= set(EXTENSION_TYPES):
-                raise ValueError(
-                    f"Invalid extension fields: {set(kwargs) - set(EXTENSION_TYPES)}"
-                )
+                raise ValueError(f"Invalid extension fields: {set(kwargs) - set(EXTENSION_TYPES)}")
             invalid_types = []
             for k, v in kwargs.items():
                 if not isinstance(v, EXTENSION_TYPES[k]):

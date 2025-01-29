@@ -28,9 +28,7 @@ class GSAccount:
         for course in courses:
             self._add_class(course)
 
-    def _delete_class(
-        self, course: GSCourse, ask_for_confirmation: bool = True
-    ) -> None:
+    def _delete_class(self, course: GSCourse, ask_for_confirmation: bool = True) -> None:
         course.delete(ask_for_confirmation=ask_for_confirmation)
         del self.instructor_courses[course.course_id]
 
@@ -119,15 +117,16 @@ class GSAccount:
         parsed_account_resp = BeautifulSoup(account_resp.text, "html.parser")
 
         create_modal = parsed_account_resp.find("dialog", id="createCourseModal")
-        authenticity_token = create_modal.find(
-            "input", attrs={"name": "authenticity_token"}
-        ).get("value")
-        default_school = create_modal.find(
-            "input", attrs={"name": "course[school_name]"}
-        ).get("value")
+        authenticity_token = create_modal.find("input", attrs={"name": "authenticity_token"}).get(
+            "value"
+        )
+        default_school = create_modal.find("input", attrs={"name": "course[school_name]"}).get(
+            "value"
+        )
         if school is not None and default_school != school:
             raise ValueError(
-                f"Default school is {default_school}; course cannot be created for non-default school {school} programmatically. Please contact help@gradescope.com."
+                f"Default school is {default_school}; course cannot be created for non-"
+                f"default school {school} programmatically. Please contact help@gradescope.com."
             )
 
         course_data = {
@@ -144,9 +143,7 @@ class GSAccount:
             "commit": "Create Course",
         }
 
-        course_resp = self.session.post(
-            "https://www.gradescope.com/courses", params=course_data
-        )
+        course_resp = self.session.post("https://www.gradescope.com/courses", params=course_data)
         course_id = re.match(
             "Course ID: ([0-9]+)",
             BeautifulSoup(course_resp.text, "html.parser")

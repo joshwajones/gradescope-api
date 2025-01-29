@@ -62,9 +62,7 @@ class Roster:
         entity: RosterType = None,
         raise_error: bool = True,
     ):
-        entity = self._access(
-            name=name, uid=uid, entity=entity, raise_error=raise_error
-        )
+        entity = self._access(name=name, uid=uid, entity=entity, raise_error=raise_error)
         if not entity:
             return False
         del self._uid_to_entity[entity.get_unique_id()]

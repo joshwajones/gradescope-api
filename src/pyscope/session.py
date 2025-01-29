@@ -35,13 +35,8 @@ class GSConnection:
             "session[remember_me_sso]": 0,
             "authenticity_token": auth_token,
         }
-        login_resp = self.session.post(
-            "https://www.gradescope.com/login", params=login_data
-        )
-        if (
-            len(login_resp.history)
-            and login_resp.history[0].status_code == requests.codes.found
-        ):
+        login_resp = self.session.post("https://www.gradescope.com/login", params=login_data)
+        if len(login_resp.history) and login_resp.history[0].status_code == requests.codes.found:
             self.state = ConnState.LOGGED_IN
             self.account = GSAccount(email, self.session)
             login_success = True
@@ -75,9 +70,9 @@ class GSConnection:
         course_list = []
         if split == CourseSplit.INSTRUCTOR or split == CourseSplit.ALL:
             course_list += _parse_courses(
-                parsed_account_resp.find(
-                    "h1", class_="pageHeading"
-                ).next_sibling.find_all("a", class_="courseBox"),
+                parsed_account_resp.find("h1", class_="pageHeading").next_sibling.find_all(
+                    "a", class_="courseBox"
+                ),
                 instructor=True,
             )
         if split == CourseSplit.STUDENT or split == CourseSplit.ALL:
@@ -101,9 +96,7 @@ class GSConnection:
         conn = cls()
         conn.login(email, password)
         conn.load_account_data()
-        matched_courses = conn.account.get_classes(
-            course_ids=[course_id], instructor=instructor
-        )
+        matched_courses = conn.account.get_classes(course_ids=[course_id], instructor=instructor)
         if len(matched_courses) != 1:
             raise ValueError(
                 f"Found {len(matched_courses)} courses with id {course_id}; expected 1."

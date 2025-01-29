@@ -29,9 +29,9 @@ class DummyBar:
 def get_csrf_token(course: GSCourse) -> str:
     membership_resp = course.session.get(f"{course.url}/memberships")
     parsed_membership_resp = BeautifulSoup(membership_resp.text, "html.parser")
-    authenticity_token = parsed_membership_resp.find(
-        "meta", attrs={"name": "csrf-token"}
-    ).get("content")
+    authenticity_token = parsed_membership_resp.find("meta", attrs={"name": "csrf-token"}).get(
+        "content"
+    )
     return authenticity_token
 
 

@@ -86,9 +86,7 @@ class GSCourse:
 
         authenticity_token = get_csrf_token(self)
         remove_params = {"_method": "delete", "authenticity_token": authenticity_token}
-        person = self.roster.get_entity(
-            name=name, uid=email, entity=person, raise_error=False
-        )
+        person = self.roster.get_entity(name=name, uid=email, entity=person, raise_error=False)
         if ask_for_confirmation:
             if not click.confirm(
                 f"Found person:\n{person.format()}.\nAre you sure you want to remove?",
@@ -129,9 +127,7 @@ class GSCourse:
         self, *, name: str = None, email: str = None, person: GSPerson = None
     ) -> GSPerson:
         self._load_necessary_data(CourseData.ROSTER)
-        return self.roster.get_entity(
-            name=name, uid=email, entity=person, raise_error=False
-        )
+        return self.roster.get_entity(name=name, uid=email, entity=person, raise_error=False)
 
     def get_all_people(self) -> list[GSPerson]:
         self._load_necessary_data(CourseData.ROSTER)
@@ -164,9 +160,7 @@ class GSCourse:
             "assignment[group_submission]": group_submissions,
         }
         assignment_files = {"template_pdf": open(template_file_path, "rb")}
-        self.session.post(
-            f"{self.url}/assignments", files=assignment_files, data=assignment_params
-        )
+        self.session.post(f"{self.url}/assignments", files=assignment_files, data=assignment_params)
 
         # Wasteful, but post response does not include new assignment ID
         self._currently_loaded &= ~CourseData.ASSIGNMENTS
@@ -180,9 +174,7 @@ class GSCourse:
         ask_for_confirmation: bool = True,
     ) -> None:
         self._load_necessary_data(CourseData.ASSIGNMENTS)
-        assignment = self.assignments.get_entity(
-            name=name, uid=assignment_id, entity=assignment
-        )
+        assignment = self.assignments.get_entity(name=name, uid=assignment_id, entity=assignment)
         authenticity_token = get_csrf_token(self)
         if ask_for_confirmation:
             if not click.confirm(
@@ -192,9 +184,7 @@ class GSCourse:
                 return
         remove_params = {"_method": "delete", "authenticity_token": authenticity_token}
 
-        self.session.post(
-            f"{self.url}/assignments/{assignment.assignment_id}", data=remove_params
-        )
+        self.session.post(f"{self.url}/assignments/{assignment.assignment_id}", data=remove_params)
 
         self.assignments.remove_entity(entity=assignment)
 
@@ -206,9 +196,7 @@ class GSCourse:
         assignment: GSAssignment = None,
     ) -> GSAssignment:
         self._load_necessary_data(CourseData.ASSIGNMENTS)
-        return self.assignments.get_entity(
-            name=name, uid=assignment_id, entity=assignment
-        )
+        return self.assignments.get_entity(name=name, uid=assignment_id, entity=assignment)
 
     def get_all_assignments(self) -> list[GSAssignment]:
         self._load_necessary_data(CourseData.ASSIGNMENTS)
@@ -227,13 +215,9 @@ class GSCourse:
             "div", attrs={"data-react-class": "AssignmentsTable"}
         )
         if len(assignment_data) != 1:
-            raise HTMLParseError(
-                f"Expected one AssignmentTable but got {len(assignment_data)}"
-            )
+            raise HTMLParseError(f"Expected one AssignmentTable but got {len(assignment_data)}")
 
-        assignment_data = json.loads(assignment_data[0].get("data-react-props"))[
-            "table_data"
-        ]
+        assignment_data = json.loads(assignment_data[0].get("data-react-props"))["table_data"]
         for row in assignment_data:
             name = row["title"]
             aid = re.match("assignment_(\d+)", row["id"])
@@ -294,9 +278,7 @@ class GSCourse:
             found_data = False
             for td in student_row("td"):
                 if td.find("button", class_="rosterCell--editIcon"):
-                    roster_table.append(
-                        td.find("button", class_="rosterCell--editIcon")
-                    )
+                    roster_table.append(td.find("button", class_="rosterCell--editIcon"))
                     found_data = True
                     break
             if not found_data:

@@ -52,4 +52,8 @@ class GSPerson(RosterType):
         return self.email
 
     def format(self, prefix="\t"):
-        return f"{prefix}Name: {self.name}\n{prefix}Email: {self.email}\n{prefix}Role: {GSRole.to_str(self.role)}"
+        return (
+            f"{prefix}Name: {self.name}\n"
+            f"{prefix}Email: {self.email}\n"
+            f"{prefix}Role: {GSRole.to_str(self.role)}"
+        )

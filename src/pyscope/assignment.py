@@ -74,9 +74,7 @@ class GSAssignment(RosterType):
         self._load_questions_if_needed()
         return self.questions.get_entity(uid=question_id, name=title, entity=question)
 
-    def add_question(
-        self, title, weight, crop=None, content=[], parent_id=None
-    ) -> None:
+    def add_question(self, title, weight, crop=None, content=[], parent_id=None) -> None:
         self._load_questions_if_needed()
 
         new_crop = crop if crop else GSQuestion.default_crop()
@@ -124,18 +122,12 @@ class GSAssignment(RosterType):
         self, *, question_id: str = None, title: str = None, question: GSQuestion = None
     ) -> None:
         self._load_questions_if_needed()
-        question = self.get_question(
-            question_id=question_id, title=title, question=question
-        )
+        question = self.get_question(question_id=question_id, title=title, question=question)
 
         parent = self._find_question_parent(question.parent_id)
         if not parent:
-            raise ValueError(
-                f"Could not find parent question with id {question.parent_id}"
-            )
-        parent.children = [
-            q for q in parent.children if q.question_id != question.question_id
-        ]
+            raise ValueError(f"Could not find parent question with id {question.parent_id}")
+        parent.children = [q for q in parent.children if q.question_id != question.question_id]
         root = self.serialize_questions()
 
         new_patch = {
@@ -158,9 +150,7 @@ class GSAssignment(RosterType):
     def _match_questions_regex(
         self, *, question_ids: list[str] = None, question_titles: list[str] = None
     ) -> list[GSQuestion]:
-        def _check_match(
-            question: GSQuestion, question_id: str = None, question_title: str = None
-        ):
+        def _check_match(question: GSQuestion, question_id: str = None, question_title: str = None):
             is_match = False
             if question_id:
                 is_match = is_match or bool(re.match(question_id, question.question_id))
@@ -197,9 +187,7 @@ class GSAssignment(RosterType):
         if questions is None:
             questions = []
         matched_questions = set(
-            self._match_questions_regex(
-                question_ids=question_ids, question_titles=question_titles
-            )
+            self._match_questions_regex(question_ids=question_ids, question_titles=question_titles)
         )
         matched_questions |= set(questions)
         for question in matched_questions:
@@ -243,9 +231,7 @@ class GSAssignment(RosterType):
     def _change_publish_status(self, published: bool) -> None:
         authenticity_token = get_csrf_token(self.course)
         data = {"assignment[published]": "true" if published else "false"}
-        self.session.patch(
-            self.url, data=data, headers={"x-csrf-token": authenticity_token}
-        )
+        self.session.patch(self.url, data=data, headers={"x-csrf-token": authenticity_token})
 
     def publish_grades(self) -> None:
         self._change_publish_status(published=True)
@@ -338,9 +324,7 @@ class GSAssignment(RosterType):
             show_bar=show_bar,
         )
         download_end_time = time.time()
-        logging.debug(
-            f"Downloaded in {download_end_time - download_start_time} seconds."
-        )
+        logging.debug(f"Downloaded in {download_end_time - download_start_time} seconds.")
 
     def _load_questions_if_needed(self) -> None:
         if not self._loaded_questions:
@@ -387,12 +371,10 @@ class GSAssignment(RosterType):
         ]
         data = json.loads(props)
         students = {row["email"]: row["id"] for row in data.get("students", [])}
-        student_id = students[
-            student_email
-        ]  # NOT the same as extension.student.data_id
-        authenticity_token = parsed_extension_resp.find(
-            "meta", attrs={"name": "csrf-token"}
-        )["content"]
+        student_id = students[student_email]  # NOT the same as extension.student.data_id
+        authenticity_token = parsed_extension_resp.find("meta", attrs={"name": "csrf-token"})[
+            "content"
+        ]
         new_settings = {"visible": True} | extension.get_extension_data(self)
         payload = {
             "override": {
@@ -404,9 +386,7 @@ class GSAssignment(RosterType):
             "x-csrf-token": authenticity_token,
             "Content-Type": "application/json",
         }
-        self.session.post(
-            extension_url, headers=headers, data=json.dumps(payload), timeout=20
-        )
+        self.session.post(extension_url, headers=headers, data=json.dumps(payload), timeout=20)
 
     def apply_extension(self, extension: GSExtension, student_email: str) -> None:
         self._apply_extension(extension, student_email=student_email)
