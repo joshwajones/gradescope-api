@@ -9,4 +9,8 @@ dependencies = [
     "requests",
     "click",
     "tqdm",
+    "pre-commit",
+    "black",
+    "flake8",
+    "isort"
 ]

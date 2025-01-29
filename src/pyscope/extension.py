@@ -1,57 +1,102 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, TYPE_CHECKING
 
-from pyscope.person import GSPerson
+fieldtype = Union[datetime, int, float, timedelta]
+numeric = Union[float, int]
+
+if TYPE_CHECKING:
+    from pyscope.assignment import GSAssignment
+
+EXTENSION_TYPES = {
+    "release_date": datetime,
+    "due_date": datetime,
+    "late_due_date": datetime,
+    "time_limit_minutes": numeric,
+    "release_delta": timedelta,
+    "due_delta": timedelta,
+    "late_due_delta": timedelta,
+    "limit_multipler": numeric,
+}
+
 
 @dataclass
 class GSExtension:
-    student: GSPerson
-    release_date: datetime = None
-    due_date: datetime = None
-    late_due_date: datetime = None
-    time_limit_minutes: int = None
+    fields: dict[str, fieldtype] = field(default_factory=dict)
 
-    release_delta: timedelta = timedelta(days=0)
-    due_delta: timedelta = timedelta(days=0)
-    late_due_delta: timedelta = timedelta(days=0)
-    limit_multipler: int = 1
+    def get_extension_data(self, assignment: GSAssignment):
+        release_date = assignment.release_date
+        due_date = assignment.due_date
+        late_due_date = (
+            assignment.hard_due_date
+            if assignment.hard_due_date
+            else assignment.due_date
+        )
+        time_limit_minutes = assignment.time_limit
 
-    def get_extension_data(self, assignment: 'GSAssignment'):
-        original_release_date = assignment.release_date
-        original_due_date = assignment.due_date
-        original_late_due_date = assignment.late_due_date
-        original_time_limit_minutes = assignment.time_limit_minutes
+        if "release_date" in self.fields:
+            release_date = self.fields["release_date"]
+        if "due_date" in self.fields:
+            due_date = self.fields["due_date"]
+        if "late_due_date" in self.fields:
+            late_due_date = self.fields["late_due_date"]
+        if "time_limit_minutes" in self.fields:
+            time_limit_minutes = self.fields["time_limit_minutes"]
 
-        if self.release_date is None:
-            self.release_date = original_release_date + self.release_delta
-        if self.due_date is None:
-            self.due_date = original_due_date + self.due_delta
-        if self.late_due_date is None:
-            self.late_due_date = original_late_due_date + self.late_due_delta
-        if self.time_limit_minutes is None:
-            self.time_limit_minutes = original_time_limit_minutes * self.limit_multipler
+        if "release_delta" in self.fields:
+            release_date += self.fields["release_delta"]
+        if "due_delta" in self.fields:
+            due_date += self.fields["due_delta"]
+        if "late_due_delta" in self.fields:
+            late_due_date += self.fields["late_due_delta"]
+        if "limit_multipler" in self.fields:
+            time_limit_minutes = (
+                self.fields["limit_multipler"] * time_limit_minutes
+                if time_limit_minutes
+                else None
+            )
 
         data = {
-            'release_date': self.release_date,
-            'due_date': self.due_date,
-            'late_due_date': self.late_due_date,
-            'time_limit_minutes': self.time_limit_minutes
+            "release_date": release_date,
+            "due_date": due_date,
+            "hard_due_date": late_due_date,
+            "time_limit_minutes": time_limit_minutes,
         }
+        formatted_data = {}
         for k, v in data.items():
-            if 'date' in k:
-                data[k] = GSExtension.format_date(v)
-        return data
+            assignment_key = k if k != "time_limit_minutes" else "time_limit"
+            if v == getattr(assignment, assignment_key):
+                continue
+            if "date" in k:
+                formatted_data[k] = GSExtension.format_date(v)
+            else:
+                formatted_data[k] = v
+
+        return formatted_data
+
+    @classmethod
+    def create(cls, **kwargs):
+        def _validate_kwargs():
+            if not set(kwargs) <= set(EXTENSION_TYPES):
+                raise ValueError(
+                    f"Invalid extension fields: {set(kwargs) - set(EXTENSION_TYPES)}"
+                )
+            invalid_types = []
+            for k, v in kwargs.items():
+                if not isinstance(v, EXTENSION_TYPES[k]):
+                    invalid_types.append(f"Invalid type for {k}: {type(v)}")
+            if invalid_types:
+                raise TypeError("\n".join(invalid_types))
+
+        _validate_kwargs()
+        return cls(fields=kwargs)
 
     @staticmethod
     def format_date(dt: Union[str, datetime]) -> str:
         if isinstance(dt, str):
             time = dt
         elif isinstance(dt, datetime):
-            time = dt.strftime('%Y-%m-%dT%H:%M')
+            time = dt.strftime("%Y-%m-%dT%H:%M")
         else:
             raise TypeError
-        return {
-            'type': 'absolute',
-            'value': f'{time}'
-        }
+        return {"type": "absolute", "value": f"{time}"}

@@ -7,6 +7,7 @@ from pyscope.pyscope_types import ConnState, CourseSplit
 from pyscope.exceptions import UninitializedAccountError
 from pyscope.utils import SafeSession
 
+
 class GSConnection:
     """Tracks the current session/connection to Gradescope."""
 
@@ -18,12 +19,12 @@ class GSConnection:
     def login(self, email: str, pswd: str) -> bool:
         login_success = False
         init_resp = self.session.get("https://www.gradescope.com/")
-        parsed_init_resp = BeautifulSoup(init_resp.text, 'html.parser')
-        for form in parsed_init_resp.find_all('form'):
+        parsed_init_resp = BeautifulSoup(init_resp.text, "html.parser")
+        for form in parsed_init_resp.find_all("form"):
             if form.get("action") == "/login":
-                for inp in form.find_all('input'):
-                    if inp.get('name') == "authenticity_token":
-                        auth_token = inp.get('value')
+                for inp in form.find_all("input"):
+                    if inp.get("name") == "authenticity_token":
+                        auth_token = inp.get("value")
 
         login_data = {
             "utf8": "✓",
@@ -34,8 +35,13 @@ class GSConnection:
             "session[remember_me_sso]": 0,
             "authenticity_token": auth_token,
         }
-        login_resp = self.session.post("https://www.gradescope.com/login", params=login_data)
-        if len(login_resp.history) and login_resp.history[0].status_code == requests.codes.found:
+        login_resp = self.session.post(
+            "https://www.gradescope.com/login", params=login_data
+        )
+        if (
+            len(login_resp.history)
+            and login_resp.history[0].status_code == requests.codes.found
+        ):
             self.state = ConnState.LOGGED_IN
             self.account = GSAccount(email, self.session)
             login_success = True
@@ -44,24 +50,24 @@ class GSConnection:
 
     def load_courses(self, split: CourseSplit = CourseSplit.ALL):
         account_resp = self.session.get("https://www.gradescope.com/account")
-        parsed_account_resp = BeautifulSoup(account_resp.text, 'html.parser')
+        parsed_account_resp = BeautifulSoup(account_resp.text, "html.parser")
 
         def _parse_courses(course_list: list, instructor: bool):
             parsed_courses = []
             for course in course_list:
                 year = None
                 for tag in course.parent.previous_siblings:
-                    if 'courseList--term' in tag.get("class"):
+                    if "courseList--term" in tag.get("class"):
                         year = tag.string
                         break
                 parsed_courses.append(
                     GSCourse(
-                        name = course.find('div', class_ = 'courseBox--name').text,
-                        nickname = course.find('h3', class_ = 'courseBox--shortname').text,
-                        course_id = course.get("href").split("/")[-1],
-                        instructor = instructor,
-                        year = year,
-                        session = self.session
+                        name=course.find("div", class_="courseBox--name").text,
+                        nickname=course.find("h3", class_="courseBox--shortname").text,
+                        course_id=course.get("href").split("/")[-1],
+                        instructor=instructor,
+                        year=year,
+                        session=self.session,
                     )
                 )
             return parsed_courses
@@ -69,20 +75,24 @@ class GSConnection:
         course_list = []
         if split == CourseSplit.INSTRUCTOR or split == CourseSplit.ALL:
             course_list += _parse_courses(
-                parsed_account_resp.find('h1', class_ = 'pageHeading').next_sibling.find_all('a', class_ = 'courseBox'), instructor=True
+                parsed_account_resp.find(
+                    "h1", class_="pageHeading"
+                ).next_sibling.find_all("a", class_="courseBox"),
+                instructor=True,
             )
         if split == CourseSplit.STUDENT or split == CourseSplit.ALL:
             course_list += _parse_courses(
-                parsed_account_resp.find('h1', class_ = 'pageHeading', string = "Student Courses").next_sibling.find_all('a', class_ = 'courseBox'), instructor=False
+                parsed_account_resp.find(
+                    "h1", class_="pageHeading", string="Student Courses"
+                ).next_sibling.find_all("a", class_="courseBox"),
+                instructor=False,
             )
         return course_list
-
 
     def load_account_data(self):
         if self.state != ConnState.LOGGED_IN:
             raise UninitializedAccountError
         self.account.add_classes(self.load_courses())
-    
 
     @classmethod
     def get_course(
@@ -91,7 +101,11 @@ class GSConnection:
         conn = cls()
         conn.login(email, password)
         conn.load_account_data()
-        matched_courses = conn.account.get_classes(course_ids=[course_id], instructor=instructor)
+        matched_courses = conn.account.get_classes(
+            course_ids=[course_id], instructor=instructor
+        )
         if len(matched_courses) != 1:
-            raise ValueError(f"Found {len(matched_courses)} courses with id {course_id}; expected 1.")
+            raise ValueError(
+                f"Found {len(matched_courses)} courses with id {course_id}; expected 1."
+            )
         return matched_courses[0]

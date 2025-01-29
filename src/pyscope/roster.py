@@ -1,11 +1,13 @@
 from typing import Dict
 from pyscope.pyscope_types import RosterType, UID
 
+
 class Roster:
     """
     A generic roster of entities, where each entity subclasses RosterType and thus has both a name (not necessarily unique) and a unique identifier.
     Can be a roster of students, of assignments, etc.
     """
+
     def __init__(self):
         self._name_to_entity: Dict[str, RosterType] = {}
         self._uid_to_entity: Dict[UID, RosterType] = {}
@@ -17,8 +19,15 @@ class Roster:
             self._name_to_entity[entity.get_name()] = []
         self._name_to_entity[entity.get_name()].append(entity)
         self._uid_to_entity[entity.get_unique_id()] = entity
-    
-    def _access(self, *, name: str = None, uid: UID = None, entity: RosterType = None, raise_error: bool = True):
+
+    def _access(
+        self,
+        *,
+        name: str = None,
+        uid: UID = None,
+        entity: RosterType = None,
+        raise_error: bool = True,
+    ):
         num_provided_fields = bool(name) + bool(uid) + bool(entity)
         if num_provided_fields != 1:
             if raise_error:
@@ -32,7 +41,9 @@ class Roster:
             named_entities = self._name_to_entity[name]
             if len(named_entities) > 1:
                 if raise_error:
-                    raise ValueError(f"Ambiguous access - multiple entities with name {name}. Try again with an unambiguous identifier.")
+                    raise ValueError(
+                        f"Ambiguous access - multiple entities with name {name}. Try again with an unambiguous identifier."
+                    )
                 return None
             entity = named_entities[0]
         elif uid:
@@ -42,9 +53,18 @@ class Roster:
                 return None
             entity = self._uid_to_entity[uid]
         return entity
-    
-    def remove_entity(self, *, name: str = None, uid: UID = None, entity: RosterType = None, raise_error: bool = True):
-        entity = self._access(name=name, uid=uid, entity=entity, raise_error=raise_error)
+
+    def remove_entity(
+        self,
+        *,
+        name: str = None,
+        uid: UID = None,
+        entity: RosterType = None,
+        raise_error: bool = True,
+    ):
+        entity = self._access(
+            name=name, uid=uid, entity=entity, raise_error=raise_error
+        )
         if not entity:
             return False
         del self._uid_to_entity[entity.get_unique_id()]
@@ -53,8 +73,15 @@ class Roster:
         else:
             self._name_to_entity[entity.get_name()].remove(entity)
         return True
-    
-    def get_entity(self, *, name: str = None, uid: UID = None, entity: RosterType = None, raise_error: bool = True):
+
+    def get_entity(
+        self,
+        *,
+        name: str = None,
+        uid: UID = None,
+        entity: RosterType = None,
+        raise_error: bool = True,
+    ):
         return self._access(name=name, uid=uid, entity=entity, raise_error=raise_error)
 
     def get_all(self):
@@ -62,8 +89,7 @@ class Roster:
 
     def __len__(self):
         return len(self._uid_to_entity)
-    
+
     def clear(self):
         self._name_to_entity = {}
         self._uid_to_entity = {}
-
