@@ -8,3 +8,7 @@ class HTMLParseError(Exception):
 
 class GSRoleException(Exception):
     pass
+
+
+class StudentNotFoundException(Exception):
+    pass

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import os
 import logging
 import argparse
+import shutil
 
 from pyscope.session import GSConnection
 from pyscope.course import GSCourse, GSRole
@@ -210,7 +211,9 @@ def run_tests(course_name: str = None, assignment_name: str = None, course_id: s
         )
         test_asn.publish_grades()
         test_asn.unpublish_grades()
-    test_asn.download_submissions()
+    test_asn.download_submissions(fname="./export")
+    assert os.path.exists("./export")
+    shutil.rmtree("./export")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from pyscope.pyscope_types import RosterType, QuestionType
 from pyscope.extension import GSExtension
 from pyscope.roster import Roster
 from pyscope.utils import get_csrf_token, stream_file
+from pyscope.exceptions import StudentNotFoundException
 
 if TYPE_CHECKING:
     from pyscope.course import GSCourse
@@ -290,7 +291,6 @@ class GSAssignment(RosterType):
         def _finished_exporting(most_recent_response):
             return json.loads(most_recent_response.text)["status"] == "completed"
 
-        start_time = time.time()
         pbar = tqdm(
             total=100,
             desc="Exporting...",
@@ -298,6 +298,7 @@ class GSAssignment(RosterType):
             bar_format="{l_bar}{bar} [{elapsed}>{remaining}]",
         )
         curr_progress = 0
+        start_time = time.time()
         while time.time() - start_time < timeout and curr_progress < 100:
             progress = _get_progress(response)
             pbar.update(progress - curr_progress)
@@ -314,16 +315,36 @@ class GSAssignment(RosterType):
         logging.debug(
             f"Export finished in {time.time() - start_time} seconds. Beginning download..."
         )
-        download_start_time = time.time()
-        stream_file(
-            self.session,
-            f"{self.url}/export",
-            fname,
-            chunk_size=chunk_size,
-            unzip=unzip,
-            show_bar=show_bar,
-        )
-        download_end_time = time.time()
+
+        # check that export is ready for download on server
+        pattern = re.escape(f"{self.course.url}/generated_files/") + "([0-9]+)\.zip"
+
+        def _ready_for_download(most_recent_response):
+            return re.match(pattern, most_recent_response.headers["Location"])
+
+        response = self.session.head(f"{self.url}/export")
+        while not _ready_for_download(response):
+            time.sleep(sleep_time)
+            response = self.session.head(f"{self.url}/export")
+
+        start_attempt_export = time.time()
+        while time.time() - start_attempt_export < timeout:
+            try:
+                download_start_time = time.time()
+                stream_file(
+                    self.session,
+                    f"{self.url}/export",
+                    fname,
+                    chunk_size=chunk_size,
+                    unzip=unzip,
+                    show_bar=show_bar,
+                )
+                download_end_time = time.time()
+                break
+            except requests.exceptions.HTTPError as e:
+                logging.debug(e)
+                logging.info("File not yet ready for download. Retrying...")
+                time.sleep(2.0)
         logging.debug(f"Downloaded in {download_end_time - download_start_time} seconds.")
 
     def _load_questions_if_needed(self) -> None:
@@ -371,6 +392,8 @@ class GSAssignment(RosterType):
         ]
         data = json.loads(props)
         students = {row["email"]: row["id"] for row in data.get("students", [])}
+        if student_email not in students:
+            raise StudentNotFoundException(f"Could not find student with email {student_email}")
         student_id = students[student_email]  # NOT the same as extension.student.data_id
         authenticity_token = parsed_extension_resp.find("meta", attrs={"name": "csrf-token"})[
             "content"
