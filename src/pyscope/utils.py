@@ -1,76 +1,66 @@
+"""Basic utilities for using Python requests to interact with Gradescope."""
+
 from __future__ import annotations
-import requests
-import zipfile
+
 import io
-from tqdm import tqdm
 import logging
-from bs4 import BeautifulSoup
+import zipfile
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+import requests
+from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 if TYPE_CHECKING:
     from pyscope.course import GSCourse
 
 
-class DummyBar:
-    """Dummy progress bar for when tqdm is not available or user has disabled it"""
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        pass
-
-    def update(self, *args, **kwargs):
-        pass
-
-
 def get_csrf_token(course: GSCourse) -> str:
+    """Get the CSRF token for a GradeScope course."""
     membership_resp = course.session.get(f"{course.url}/memberships")
     parsed_membership_resp = BeautifulSoup(membership_resp.text, "html.parser")
-    authenticity_token = parsed_membership_resp.find("meta", attrs={"name": "csrf-token"}).get(
-        "content"
+    return parsed_membership_resp.find("meta", attrs={"name": "csrf-token"}).get(
+        "content",
     )
-    return authenticity_token
 
 
-def byte_to_mb(bytes: int) -> float:
-    return float(bytes) / (1024 * 1024)
+def _byte_to_mb(num_bytes: int) -> float:
+    return float(num_bytes) / (1024 * 1024)
 
 
 def stream_file(
     session: requests.Session,
     url: str,
-    write_to: str,
+    write_to: Path | str,
     chunk_size: int = 8192,
     unzip: bool = True,
     show_bar: bool = True,
 ) -> None:
-    """
-    Streams a ZIP file from a URL and extracts its contents.
+    """Streams a ZIP file from a URL and extracts its contents.
 
     Args:
         session (requests.Session): The requests session to use for the download.
         url (str): The URL of the ZIP file to download.
-        extract_to (str): The directory to extract the contents to.
+        write_to (str or Path): The directory to extract the contents to.
         chunk_size (int): The size of each chunk to download.
         unzip (bool): Whether to unzip the file after downloading.
         show_bar (bool): Whether to show a progress bar.
+
     """
-    bar_constructor = DummyBar if not show_bar else tqdm
+    write_to = Path(write_to)
     with session.get(url, stream=True) as response:
         total_size = int(response.headers.get("content-length", 0))
 
         with (
             io.BytesIO() as file_stream,
-            bar_constructor(
+            tqdm(
                 desc="Downloading zip file...",
                 total=total_size,
                 unit="B",
                 unit_scale=True,
                 unit_divisor=1024,
+                disable=not show_bar,
             ) as bar,
         ):
             for chunk in response.iter_content(chunk_size=chunk_size):
@@ -79,33 +69,36 @@ def stream_file(
                     bar.update(len(chunk))
 
             logging.debug(
-                f"Successfully downloaded {byte_to_mb(file_stream.getbuffer().nbytes)} MB"
+                "Successfully downloaded %.2f MB",
+                _byte_to_mb(file_stream.getbuffer().nbytes),
             )
             file_stream.seek(0)
             if unzip:
                 with zipfile.ZipFile(file_stream) as zip_file:
                     zip_file.extractall(write_to)
-                    logging.debug(f"Files extracted successfully to {write_to}")
+                    logging.debug("Files extracted successfully to %s", write_to)
             else:
-                with open(write_to, "wb") as file:
+                with write_to.open("wb") as file:
                     file.write(file_stream.read())
-                logging.debug(f"File successfull written to: {write_to}")
+                logging.debug("File successfull written to: %s", write_to)
 
 
 class SafeSession(requests.Session):
-    """
-    A thin wrapper around requests.Session that by default checks for errors, and dumps some debug info
-    """
+    """A thin wrapper around requests.Session that by default checks for errors, and dumps some debug info."""
 
-    def request(self, method, url, *args, _raise=True, **kwargs):
+    def request(self, method: str, url: str, *args, _raise: bool = True, **kwargs) -> requests.Response:  # noqa: ANN002, ANN003, D102
         response = super().request(method, url, **kwargs)
         if _raise:
             try:
                 response.raise_for_status()
-            except requests.exceptions.HTTPError as e:
-                logging.debug(
-                    f"Attempted to request {method} on {url} with args {args} and kwargs {kwargs}.\nStatus code: {response.status_code}"
+            except requests.exceptions.HTTPError:
+                logging.exception(
+                    "Attempted to request %s on %s with args %s and kwargs %s.\nStatus code: %d",
+                    method,
+                    url,
+                    args,
+                    kwargs,
+                    response.status_code,
                 )
-                logging.debug(f"Error: {e}")
-                raise e
+                raise
         return response

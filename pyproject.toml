@@ -14,5 +14,31 @@ dependencies = [
 ]
 
 [tool.ruff]
-line-length = 100 
-target-version = 'py311'
+lint.select = ["ALL"]
+lint.ignore = [
+    "D100",
+    "C901",
+    "FBT001",
+    "FBT002",
+    "PLR0913",
+    "PLR0911",
+    "D105",
+    "D107",
+    "DTZ005",
+]
+
+exclude = [
+    "**/.*",
+    "**/__pycache__",
+    "sensitive",
+]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.per-file-ignores]
+"test/*.py" = ["S101", "D", "PLR2004"]
+
+[tool.ruff-format]
+quote-style = "double"
+line-ending = "lf"
+indent-style = "space"

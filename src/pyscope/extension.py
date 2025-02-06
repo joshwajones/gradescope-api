@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Union, TYPE_CHECKING
-
-fieldtype = Union[datetime, int, float, timedelta]
-numeric = Union[float, int]
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pyscope.assignment import GSAssignment
+
+fieldtype = datetime | int | float | timedelta
+numeric = float | int
+
 
 EXTENSION_TYPES = {
     "release_date": datetime,
@@ -23,42 +25,46 @@ EXTENSION_TYPES = {
 
 @dataclass
 class GSExtension:
+    """A class modeling an extension to an assignment."""
+
     fields: dict[str, fieldtype] = field(default_factory=dict)
 
-    def get_extension_data(self, assignment: GSAssignment):
-        release_date = assignment.release_date
-        due_date = assignment.due_date
-        late_due_date = (
-            assignment.hard_due_date if assignment.hard_due_date else assignment.due_date
-        )
-        time_limit_minutes = assignment.time_limit
+    def _translate_key(self, key: str) -> str:
+        if key == "hard_due_date":
+            return "late_due_date"
+        return key
 
-        if "release_date" in self.fields:
-            release_date = self.fields["release_date"]
-        if "due_date" in self.fields:
-            due_date = self.fields["due_date"]
-        if "late_due_date" in self.fields:
-            late_due_date = self.fields["late_due_date"]
-        if "time_limit_minutes" in self.fields:
-            time_limit_minutes = self.fields["time_limit_minutes"]
+    def get_extension_data(self, assignment: GSAssignment) -> dict[str, str]:
+        """Parse the extension data into the format expected by the Gradescope.
+
+        Args:
+            assignment (GSAssignment): The assignment to which the extension is applied.
+
+        Returns:
+            dict: The extension data in the format expected by the Gradescope.
+
+        """
+        data = {
+            "release_date": assignment.release_date,
+            "due_date": assignment.due_date,
+            "hard_due_date": assignment.hard_due_date if assignment.hard_due_date else assignment.due_date,
+            "time_limit_minutes": assignment.time_limit,
+        }
+
+        for key, value in data.items():
+            data[key] = self.fields.get(self._translate_key(key), value)
 
         if "release_delta" in self.fields:
-            release_date += self.fields["release_delta"]
+            data["release_date"] += self.fields["release_delta"]
         if "due_delta" in self.fields:
-            due_date += self.fields["due_delta"]
+            data["due_date"] += self.fields["due_delta"]
         if "late_due_delta" in self.fields:
-            late_due_date += self.fields["late_due_delta"]
+            data["hard_due_date"] += self.fields["late_due_delta"]
         if "limit_multipler" in self.fields:
-            time_limit_minutes = (
-                self.fields["limit_multipler"] * time_limit_minutes if time_limit_minutes else None
+            data["time_limit_minutes"] = (
+                self.fields["limit_multipler"] * data["time_limit_minutes"] if data["time_limit_minutes"] else None
             )
 
-        data = {
-            "release_date": release_date,
-            "due_date": due_date,
-            "hard_due_date": late_due_date,
-            "time_limit_minutes": time_limit_minutes,
-        }
         formatted_data = {}
         for k, v in data.items():
             assignment_key = k if k != "time_limit_minutes" else "time_limit"
@@ -72,26 +78,31 @@ class GSExtension:
         return formatted_data
 
     @classmethod
-    def create(cls, **kwargs):
-        def _validate_kwargs():
-            if not set(kwargs) <= set(EXTENSION_TYPES):
-                raise ValueError(f"Invalid extension fields: {set(kwargs) - set(EXTENSION_TYPES)}")
+    def create(cls, **fields: dict[str, fieldtype]) -> GSExtension:
+        """Create a new extension from the given fields, and performs type validation."""
+
+        def _validate_kwargs() -> None:
+            if not set(fields) <= set(EXTENSION_TYPES):
+                msg = f"Invalid extension fields: {set(fields) - set(EXTENSION_TYPES)}"
+                raise ValueError(msg)
             invalid_types = []
-            for k, v in kwargs.items():
+            for k, v in fields.items():
                 if not isinstance(v, EXTENSION_TYPES[k]):
                     invalid_types.append(f"Invalid type for {k}: {type(v)}")
             if invalid_types:
-                raise TypeError("\n".join(invalid_types))
+                msg = "Invalid types found:" + "\n\t".join(invalid_types)
+                raise TypeError(msg)
 
         _validate_kwargs()
-        return cls(fields=kwargs)
+        return cls(fields=fields)
 
     @staticmethod
-    def format_date(dt: Union[str, datetime]) -> str:
-        if isinstance(dt, str):
-            time = dt
-        elif isinstance(dt, datetime):
-            time = dt.strftime("%Y-%m-%dT%H:%M")
+    def format_date(date: str | datetime) -> str:
+        """Return a string representation of a date."""
+        if isinstance(date, str):
+            time = date
+        elif isinstance(date, datetime):
+            time = date.strftime("%Y-%m-%dT%H:%M")
         else:
             raise TypeError
         return {"type": "absolute", "value": f"{time}"}
