@@ -77,6 +77,13 @@ class GSExtension:
 
         return formatted_data
 
+    def get_timedelta(self) -> timedelta:
+        """Get the total timedelta for the extension."""
+        return max(
+            self.fields.get("late_due_delta", timedelta(days=0)),
+            self.fields.get("due_delta", timedelta(days=0)),
+        )
+
     @classmethod
     def create(cls, **fields: dict[str, fieldtype]) -> GSExtension:
         """Create a new extension from the given fields, and performs type validation."""

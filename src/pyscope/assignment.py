@@ -564,3 +564,9 @@ class GSAssignment(RosterType):
             "release": self.release_date.isoformat(),
             "due": self.due_date.isoformat(),
         }
+
+    def get_hard_due_date(self) -> datetime:
+        """Get the hard due date of the assignment, if it exists."""
+        if self.hard_due_date:
+            return self.hard_due_date
+        return self.due_date
