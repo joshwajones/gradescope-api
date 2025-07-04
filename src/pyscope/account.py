@@ -48,7 +48,7 @@ class GSAccount:
         ) -> bool:
             is_match = False
             if course_id:
-                is_match = is_match or bool(re.match(course_id, course.course_id))
+                is_match = is_match or bool(re.match(str(course_id), course.course_id))
             if course_name:
                 is_match = is_match or bool(re.match(course_name, course.name))
             if instructor is not None:
