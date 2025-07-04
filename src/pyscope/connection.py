@@ -78,7 +78,7 @@ class GSConnection:
         if split in (CourseSplit.STUDENT, CourseSplit.ALL):
             course_list += _parse_courses(
                 parsed_account_resp.find(
-                    "h1",
+                    "h2",
                     class_="pageHeading",
                     string="Student Courses",
                 ).next_sibling.find_all("a", class_="courseBox"),
